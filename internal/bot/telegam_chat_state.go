@@ -6,12 +6,17 @@ import (
 	"time"
 )
 
-type TelegramBotState struct {
-	NextFunc  *func(msg *tgbotapi.Message)
+type TelegramChatState struct {
+	NextFunc  *func(*tgbotapi.Message, *TelegramChatState)
 	Timestamp time.Time
 }
 
-func CleanupUserStates(mu *sync.Mutex, states *map[int64]*TelegramBotState) {
+func (s *TelegramChatState) UpdateChatState(nextFunc *func(*tgbotapi.Message, *TelegramChatState)) {
+	s.NextFunc = nextFunc
+	s.Timestamp = time.Now()
+}
+
+func CleanupUserStates(mu *sync.Mutex, states *map[int64]*TelegramChatState) {
 	for {
 		time.Sleep(1 * time.Hour)
 		now := time.Now()
