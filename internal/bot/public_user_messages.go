@@ -1,9 +1,11 @@
 package bot
 
 type UserTexts struct {
-	Welcome       string
-	Cancel        string
-	InternalError string
+	Welcome            string
+	Cancel             string
+	Calendar           string
+	PhoneNumberRequest string
+	InternalError      string
 }
 
 func NewUserTexts() *UserTexts {
@@ -19,6 +21,11 @@ func NewUserTexts() *UserTexts {
 Если нужна помощь, используйте команду /help.`,
 
 		Cancel: "Мы успешно вернулись в начало",
+
+		Calendar: "Выберите нужный день\n🟢 Свободные дни",
+
+		PhoneNumberRequest: "Чтобы мы могли с вами взаимодействовать дальше, пожалуйста, " +
+			"поделитесь номером телефона 📱",
 
 		InternalError: "😔 Внутренняя ошибка сервера. Пожалуйста, попробуйте позже. " +
 			"Спасибо за понимание! 🙏",

@@ -8,6 +8,23 @@ import (
 	"time"
 )
 
+type TelegramBotDoctorCallbackData struct {
+	CallbackData
+	DoctorID int64 `json:"d"`
+}
+
+func (h *TelegramBotHandler) ShowCalendarCallback(query *tgbotapi.CallbackQuery) {
+	var telegramBotDoctorCallbackData TelegramBotDoctorCallbackData
+	err := json.Unmarshal([]byte(query.Data), &telegramBotDoctorCallbackData)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+
+	now := time.Now()
+	h.ChangeTimesheet(query, now)
+}
+
 func (h *TelegramBotHandler) SwitchTimesheetMonthCallback(query *tgbotapi.CallbackQuery) {
 	var specialButtonCallbackData SpecialButtonCallbackData
 	err := json.Unmarshal([]byte(query.Data), &specialButtonCallbackData)
@@ -25,15 +42,11 @@ func (h *TelegramBotHandler) SwitchTimesheetMonthCallback(query *tgbotapi.Callba
 	case BTN_NEXT:
 		nextMonth := time.Date(
 			year, time.Month(month)+1, 1, 0, 0, 0, 0, time.UTC)
-		endOfNextMonth := time.Date(
-			year, time.Month(month)+2, 1, 0, 0, 0, 0, time.UTC)
-		h.ChangeTimesheet(query, nextMonth, endOfNextMonth)
+		h.ChangeTimesheet(query, nextMonth)
 	case BTN_PREV:
 		prevMonth := time.Date(
 			year, time.Month(month)-1, 1, 0, 0, 0, 0, time.UTC)
-		endOfPrevMonth := time.Date(
-			year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-		h.ChangeTimesheet(query, prevMonth, endOfPrevMonth)
+		h.ChangeTimesheet(query, prevMonth)
 	default:
 		logrus.Error("Unknown button")
 		return

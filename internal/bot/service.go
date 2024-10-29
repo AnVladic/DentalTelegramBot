@@ -26,7 +26,7 @@ func (h *TelegramBotHandler) Send(
 }
 
 func (h *TelegramBotHandler) Edit(
-	msgConfig tgbotapi.EditMessageReplyMarkupConfig, errNotifyUser bool) (tgbotapi.Message, error) {
+	msgConfig tgbotapi.EditMessageTextConfig, errNotifyUser bool) (tgbotapi.Message, error) {
 	msg, err := h.bot.Send(msgConfig)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
@@ -51,6 +51,25 @@ func findTimesheetByDate(day, month, year int, timesheet []crm.TimesheetResponse
 		}
 	}
 	return nil
+}
+
+func (h *TelegramBotHandler) RequestContactKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	phoneButton := tgbotapi.KeyboardButton{
+		Text:           "📞 Отправить номер телефона",
+		RequestContact: true,
+	}
+
+	keyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(phoneButton),
+	)
+	keyboard.OneTimeKeyboard = true
+	return keyboard
+}
+
+func (h *TelegramBotHandler) RequestPhoneNumber(message *tgbotapi.Message) {
+	msg := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.PhoneNumberRequest)
+	msg.ReplyMarkup = h.RequestContactKeyboard()
+	_, _ = h.Send(msg, true)
 }
 
 func (h *TelegramBotHandler) GenerateTimesheetCalendar(
@@ -84,14 +103,20 @@ func (h *TelegramBotHandler) GenerateTimesheetCalendar(
 	return keyboard
 }
 
-func (h *TelegramBotHandler) ChangeTimesheet(query *tgbotapi.CallbackQuery, start time.Time, end time.Time) {
+func (h *TelegramBotHandler) ChangeTimesheet(
+	query *tgbotapi.CallbackQuery, start time.Time,
+) {
+	end := time.Date(start.Year(), start.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 	timesheet, err := h.dentalProClient.Timesheet(start, end)
 	if err != nil {
 		_, _ = h.Send(tgbotapi.NewMessage(query.Message.Chat.ID, h.userTexts.InternalError), false)
 		logrus.Error(err)
 		return
 	}
-	edit := tgbotapi.NewEditMessageReplyMarkup(
-		query.Message.Chat.ID, query.Message.MessageID, h.GenerateTimesheetCalendar(timesheet, start))
+	edit := tgbotapi.NewEditMessageTextAndMarkup(
+		query.Message.Chat.ID,
+		query.Message.MessageID,
+		h.userTexts.Calendar,
+		h.GenerateTimesheetCalendar(timesheet, start))
 	_, _ = h.Edit(edit, true)
 }

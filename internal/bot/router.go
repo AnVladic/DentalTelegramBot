@@ -59,6 +59,8 @@ func (r *Router) StartListening() {
 			switch data.Command {
 			case "switch_timesheet_month":
 				r.tgBotHandler.SwitchTimesheetMonthCallback(update.CallbackQuery)
+			case "select_doctor":
+				r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
 			default:
 				logrus.Errorf("unknown command \"%s\"", data.Command)
 			}

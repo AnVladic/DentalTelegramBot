@@ -12,6 +12,7 @@ import (
 
 type IDentalProClient interface {
 	Timesheet(startDate, endDate time.Time) ([]TimesheetResponse, error)
+	DoctorsList() ([]Doctor, error)
 }
 
 type DentalProClient struct {
@@ -29,9 +30,28 @@ type TimesheetResponse struct {
 	BranchID     int64     `json:"branchID"`
 }
 
+type Doctor struct {
+	ID           int64             `json:"id"`
+	UserID       int64             `json:"user_id"`
+	IsVIP        bool              `json:"is_vip"`
+	DateAdded    time.Time         `json:"date_added"`
+	DateDelete   *time.Time        `json:"date_delete"`
+	IsHidden     bool              `json:"is_hidden"`
+	MoneyPerHour int               `json:"money_per_hour"`
+	Branches     map[string]string `json:"branches"`
+	Name         string            `json:"name"`
+	Surname      string            `json:"surname"`
+	SecondName   string            `json:"second_name"`
+	FIO          string            `json:"fio"`
+	UserGroups   map[string]string `json:"user_groups"`
+	Departments  map[string]string `json:"departments"`
+	Photo        *string           `json:"photo"`
+	Phone        string            `json:"phone"`
+}
+
 func NewDentalProClient(token string, secretKey string, test bool) IDentalProClient {
 	if test {
-		return &DentalProClientTest{Token: token, SecretKey: secretKey}
+		return NewDentalProClientTest(token, secretKey)
 	}
 	return &DentalProClient{Token: token, SecretKey: secretKey}
 }
@@ -42,6 +62,10 @@ func (c *DentalProClient) baseURL() string {
 
 func (c *DentalProClient) ConvertDateToStr(date time.Time) string {
 	return date.Format("2006-01-02")
+}
+
+func (c *DentalProClient) DoctorsList() ([]Doctor, error) {
+	return nil, nil
 }
 
 func (c *DentalProClient) Timesheet(startDate, endDate time.Time) ([]TimesheetResponse, error) {

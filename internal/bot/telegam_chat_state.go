@@ -11,8 +11,8 @@ type TelegramChatState struct {
 	Timestamp time.Time
 }
 
-func (s *TelegramChatState) UpdateChatState(nextFunc *func(*tgbotapi.Message, *TelegramChatState)) {
-	s.NextFunc = nextFunc
+func (s *TelegramChatState) UpdateChatState(nextFunc func(*tgbotapi.Message, *TelegramChatState)) {
+	s.NextFunc = &nextFunc
 	s.Timestamp = time.Now()
 }
 

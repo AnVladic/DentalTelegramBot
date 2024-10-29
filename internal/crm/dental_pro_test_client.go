@@ -5,6 +5,75 @@ import "time"
 type DentalProClientTest struct {
 	Token     string
 	SecretKey string
+	Doctors   []Doctor
+}
+
+func NewDentalProClientTest(token, secretKey string) *DentalProClientTest {
+	dateAdded, _ := time.Parse("2006-01-02 15:04:05", "2023-09-12 10:22:40")
+	photo1 := "/content/upload/web/11.10.2032/42/mvFile_92343245014727.svg"
+	doctors := []Doctor{
+		{
+			ID:           2,
+			UserID:       26,
+			IsVIP:        false,
+			DateAdded:    dateAdded,
+			DateDelete:   nil,
+			IsHidden:     false,
+			MoneyPerHour: 4500,
+			Branches: map[string]string{
+				"2": "OOO Cтоматологический центр Хотьково",
+				"3": "ОЛИМП Софрино",
+			},
+			Name:       "С",
+			Surname:    "Подаева",
+			SecondName: "Евгеньевна",
+			FIO:        "Подаева С.Е.",
+			UserGroups: map[string]string{
+				"1":  "Директор",
+				"4":  "Администратор",
+				"6":  "Врач",
+				"9":  "Главврач",
+				"10": "Руководитель КЦ",
+				"24": "Доступ к базе пациентов",
+			},
+			Departments: map[string]string{
+				"2": "Терапевты",
+			},
+			Photo: &photo1,
+			Phone: "79243540544",
+		},
+		{
+			ID:           3,
+			UserID:       27,
+			IsVIP:        false,
+			DateAdded:    dateAdded,
+			DateDelete:   nil,
+			IsHidden:     false,
+			MoneyPerHour: 8800,
+			Branches: map[string]string{
+				"2": "OOO Cтоматологический центр Хотьково",
+			},
+			Name:       "Борис",
+			Surname:    "Погосян",
+			SecondName: "Камоевич",
+			FIO:        "Погосян Б.К.",
+			UserGroups: map[string]string{
+				"6": "Врач",
+			},
+			Departments: map[string]string{
+				"6": "Ортопеды",
+			},
+			Photo: nil,
+			Phone: "791234296492",
+		},
+	}
+
+	return &DentalProClientTest{Token: token, SecretKey: secretKey, Doctors: doctors}
+}
+
+func (c *DentalProClientTest) DoctorsList() ([]Doctor, error) {
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/test?method=mobile/doctor/list&target=modal
+	return c.Doctors, nil
 }
 
 func (c *DentalProClientTest) Timesheet(startDate, endDate time.Time) ([]TimesheetResponse, error) {
