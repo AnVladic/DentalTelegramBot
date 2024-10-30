@@ -46,25 +46,29 @@ func (r *Router) StartListening() {
 	updates := r.bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message != nil {
-			r.handleMessage(update.Message)
-		}
-		if update.CallbackQuery != nil {
-			var data CallbackData
-			callbackData := []byte(update.CallbackQuery.Data)
-			err := json.Unmarshal(callbackData, &data)
-			if err != nil {
-				logrus.Error(err)
+		go func() {
+			if update.Message != nil {
+				r.handleMessage(update.Message)
 			}
-			switch data.Command {
-			case "switch_timesheet_month":
-				r.tgBotHandler.SwitchTimesheetMonthCallback(update.CallbackQuery)
-			case "select_doctor":
-				r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
-			default:
-				logrus.Errorf("unknown command \"%s\"", data.Command)
+			if update.CallbackQuery != nil {
+				var data CallbackData
+				callbackData := []byte(update.CallbackQuery.Data)
+				err := json.Unmarshal(callbackData, &data)
+				if err != nil {
+					logrus.Error(err)
+				}
+				switch data.Command {
+				case "switch_timesheet_month":
+					r.tgBotHandler.SwitchTimesheetMonthCallback(update.CallbackQuery)
+				case "select_doctor":
+					r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
+				case "back":
+					r.tgBotHandler.BackCallback(update.CallbackQuery)
+				default:
+					logrus.Errorf("unknown command \"%s\"", data.Command)
+				}
 			}
-		}
+		}()
 	}
 }
 

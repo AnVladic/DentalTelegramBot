@@ -2,14 +2,12 @@ package bot
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 	"main/internal/crm"
 	"main/internal/database"
-	"strings"
 )
 
 type TelegramBotHandler struct {
@@ -62,7 +60,6 @@ func (h *TelegramBotHandler) NoAuthRegisterCommandHandler(message *tgbotapi.Mess
 
 func (h *TelegramBotHandler) RegisterCommandHandler(message *tgbotapi.Message, chatState *TelegramChatState) {
 	logrus.Print("/register command")
-
 	repository := database.UserRepository{Db: h.db}
 	_, err := repository.GetUserByTelegramID(message.From.ID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -75,30 +72,15 @@ func (h *TelegramBotHandler) RegisterCommandHandler(message *tgbotapi.Message, c
 		_, _ = h.Send(response, false)
 	}
 
-	doctors, err := h.dentalProClient.DoctorsList()
-	if err != nil {
-		_, _ = h.Send(tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError), false)
-		logrus.Print(err)
-		return
-	}
-
-	response := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, выберите врача для записи. "+
-		"Вы можете выбрать из доступных специалистов ниже 👇")
-	keyboard := tgbotapi.InlineKeyboardMarkup{}
-	for _, doctor := range doctors {
-		data := TelegramBotDoctorCallbackData{
-			CallbackData: CallbackData{"select_doctor"},
-			DoctorID:     doctor.ID,
+	go func() {
+		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.Wait)
+		newMsg, err := h.Send(response, true)
+		if err != nil {
+			logrus.Error(err)
+			return
 		}
-		bytesData, _ := json.Marshal(data)
-		title := fmt.Sprintf(
-			"%s - %s", doctor.FIO, strings.Join(GetMapValues(doctor.Departments), ", "))
-		btn := tgbotapi.NewInlineKeyboardButtonData(title, string(bytesData))
-		row := []tgbotapi.InlineKeyboardButton{btn}
-		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
-	}
-	response.ReplyMarkup = keyboard
-	_, _ = h.Send(response, true)
+		h.ChangeToDoctorsMarkup(newMsg)
+	}()
 }
 
 func (h *TelegramBotHandler) CancelCommandHandler(message *tgbotapi.Message, chatState *TelegramChatState) {

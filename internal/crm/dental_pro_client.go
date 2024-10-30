@@ -111,3 +111,12 @@ func (c *DentalProClient) Timesheet(startDate, endDate time.Time) ([]TimesheetRe
 
 	return responseData, nil
 }
+
+func GetDoctorByID(doctors []Doctor, doctorID int64) *Doctor {
+	for _, doctor := range doctors {
+		if doctor.ID == doctorID {
+			return &doctor
+		}
+	}
+	return nil
+}

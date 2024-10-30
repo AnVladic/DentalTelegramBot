@@ -10,3 +10,8 @@ type User struct {
 	Lastname  *string
 	Phone     *string
 }
+
+type Doctor struct {
+	ID  int64
+	FIO string
+}
