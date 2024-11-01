@@ -60,6 +60,11 @@ func (h *TelegramBotHandler) NoAuthRegisterCommandHandler(message *tgbotapi.Mess
 
 func (h *TelegramBotHandler) RegisterCommandHandler(message *tgbotapi.Message, chatState *TelegramChatState) {
 	logrus.Print("/register command")
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot",
+		"func":   "RegisterCommandHandler",
+	})
+
 	repository := database.UserRepository{Db: h.db}
 	_, err := repository.GetUserByTelegramID(message.From.ID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -67,7 +72,7 @@ func (h *TelegramBotHandler) RegisterCommandHandler(message *tgbotapi.Message, c
 		chatState.UpdateChatState(h.NoAuthRegisterCommandHandler)
 		return
 	} else if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
 		_, _ = h.Send(response, false)
 	}
@@ -110,7 +115,7 @@ func (h *TelegramBotHandler) GetPhoneNumber(
 
 	phoneNumber := message.Contact.PhoneNumber
 	repository := database.UserRepository{Db: h.db}
-	err := repository.UpsertUserPhoneByTelegramID(message.From.ID, phoneNumber)
+	err := repository.UpsertPhoneByTelegramID(message.From.ID, phoneNumber)
 	if err != nil {
 		logrus.Error(err)
 		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)

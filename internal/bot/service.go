@@ -2,10 +2,12 @@ package bot
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 	"main/internal/crm"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -61,11 +63,11 @@ func (h *TelegramBotHandler) EditReplyMarkup(
 	return msg, err
 }
 
-func findTimesheetByDate(day, month, year int, timesheet []crm.TimesheetResponse) *crm.TimesheetResponse {
-	for _, entry := range timesheet {
-		if entry.PlannedStart.Day() == day &&
-			entry.PlannedStart.Month() == time.Month(month) &&
-			entry.PlannedStart.Year() == year {
+func findScheduleByDate(day, month, year int, schedule []crm.WorkSchedule) *crm.WorkSchedule {
+	for _, entry := range schedule {
+		if entry.Date.Day() == day &&
+			entry.Date.Month() == time.Month(month) &&
+			entry.Date.Year() == year {
 			return &entry
 		}
 	}
@@ -108,21 +110,28 @@ func (h *TelegramBotHandler) AddBackButton(
 }
 
 func (h *TelegramBotHandler) GenerateTimesheetCalendar(
-	timesheet []crm.TimesheetResponse, currentDate time.Time) tgbotapi.InlineKeyboardMarkup {
+	schedule []crm.WorkSchedule, currentDate time.Time, doctorID int64) tgbotapi.InlineKeyboardMarkup {
 	textDayFunc := func(day, month, year int) (string, string) {
 		btnText := fmt.Sprintf("%v", day)
 		now := time.Now()
 		if now.Day() <= day || int(now.Month()) < month || now.Year() < year {
-			freeDay := findTimesheetByDate(day, month, year, timesheet)
-			if freeDay != nil {
+			workSchedule := findScheduleByDate(day, month, year, schedule)
+			if workSchedule != nil && workSchedule.IsWork {
 				btnText = fmt.Sprintf("🟢 %v", day)
 			}
 		}
-		return btnText, fmt.Sprintf("%v.%v.%v", year, month, day)
+		data := TelegramChoiceDayCallback{
+			CallbackData{"day"},
+			doctorID,
+			fmt.Sprintf("%v.%v.%v", year, month, day),
+		}
+		dataBytes, _ := json.Marshal(data)
+		return btnText, string(dataBytes)
 	}
 
 	specialButtonCallbackData := SpecialButtonCallbackData{
 		CallbackData: CallbackData{Command: "switch_timesheet_month"},
+		DoctorID:     doctorID,
 	}
 
 	now := time.Now()
@@ -140,10 +149,9 @@ func (h *TelegramBotHandler) GenerateTimesheetCalendar(
 }
 
 func (h *TelegramBotHandler) ChangeTimesheet(
-	query *tgbotapi.CallbackQuery, start time.Time, text *string,
+	query *tgbotapi.CallbackQuery, start time.Time, text *string, doctorID int64,
 ) {
-	end := time.Date(start.Year(), start.Month()+1, 1, 0, 0, 0, 0, time.UTC)
-	timesheet, err := h.dentalProClient.Timesheet(start, end)
+	schedule, err := h.dentalProClient.DoctorWorkSchedule(start, doctorID)
 	if err != nil {
 		_, _ = h.Send(tgbotapi.NewMessage(query.Message.Chat.ID, h.userTexts.InternalError), false)
 		logrus.Error(err)
@@ -154,14 +162,14 @@ func (h *TelegramBotHandler) ChangeTimesheet(
 		edit := tgbotapi.NewEditMessageReplyMarkup(
 			query.Message.Chat.ID,
 			query.Message.MessageID,
-			h.GenerateTimesheetCalendar(timesheet, start))
+			h.GenerateTimesheetCalendar(schedule, start, doctorID))
 		_, _ = h.EditReplyMarkup(edit, true)
 	} else {
 		edit := tgbotapi.NewEditMessageTextAndMarkup(
 			query.Message.Chat.ID,
 			query.Message.MessageID,
 			*text,
-			h.GenerateTimesheetCalendar(timesheet, start))
+			h.GenerateTimesheetCalendar(schedule, start, doctorID))
 		_, _ = h.Edit(edit, true)
 	}
 }
@@ -190,4 +198,21 @@ func (h *TelegramBotHandler) ChangeToDoctorsMarkup(message *tgbotapi.Message) {
 		"Пожалуйста, выберите врача для записи. Вы можете выбрать из доступных специалистов ниже 👇",
 		keyboard)
 	_, _ = h.Edit(response, true)
+}
+
+// GetOrCreatePatient return: Patient, created, error
+func (h *TelegramBotHandler) GetOrCreatePatient(name, surname, phone string) (crm.Patient, bool, error) {
+	patient, err := h.dentalProClient.PatientByPhone(phone)
+	var reqErr *crm.RequestError
+	if errors.As(err, &reqErr) {
+		if reqErr.Code != http.StatusNotFound {
+			patient, err = h.dentalProClient.CreatePatient(name, surname, phone)
+			if err != nil {
+				logrus.Error(err)
+				return crm.Patient{}, false, err
+			}
+			return patient, true, nil
+		}
+	}
+	return patient, false, nil
 }

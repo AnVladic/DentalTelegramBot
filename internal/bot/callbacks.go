@@ -19,6 +19,12 @@ type TelegramBackCallback struct {
 	Back string `json:"b"`
 }
 
+type TelegramChoiceDayCallback struct {
+	CallbackData
+	DoctorID int64  `json:"d"`
+	Date     string `json:"dt"`
+}
+
 func (h *TelegramBotHandler) ShowCalendarCallback(query *tgbotapi.CallbackQuery) {
 	var telegramBotDoctorCallbackData TelegramBotDoctorCallbackData
 	err := json.Unmarshal([]byte(query.Data), &telegramBotDoctorCallbackData)
@@ -43,8 +49,9 @@ func (h *TelegramBotHandler) ShowCalendarCallback(query *tgbotapi.CallbackQuery)
 	now := time.Now()
 
 	text := fmt.Sprintf(
-		"%s - %s\n🟢 Рабочие дни", h.userTexts.Calendar, (*doctor).FIO)
-	h.ChangeTimesheet(query, now, &text)
+		"%s - %s\n🟢 Доступные дни", h.userTexts.Calendar, doctor.FIO,
+	)
+	h.ChangeTimesheet(query, now, &text, telegramBotDoctorCallbackData.DoctorID)
 }
 
 func (h *TelegramBotHandler) SwitchTimesheetMonthCallback(query *tgbotapi.CallbackQuery) {
@@ -52,6 +59,7 @@ func (h *TelegramBotHandler) SwitchTimesheetMonthCallback(query *tgbotapi.Callba
 	err := json.Unmarshal([]byte(query.Data), &specialButtonCallbackData)
 	if err != nil {
 		logrus.Error(err)
+		_ = fmt.Errorf("SwitchTimesheetMonthCallback %w", err)
 		return
 	}
 
@@ -60,19 +68,13 @@ func (h *TelegramBotHandler) SwitchTimesheetMonthCallback(query *tgbotapi.Callba
 	if err != nil {
 		logrus.Error(err)
 	}
-	switch specialButtonCallbackData.Button {
-	case BTN_NEXT:
-		nextMonth := time.Date(
-			year, time.Month(month)+1, 1, 0, 0, 0, 0, time.UTC)
-		h.ChangeTimesheet(query, nextMonth, nil)
-	case BTN_PREV:
-		prevMonth := time.Date(
-			year, time.Month(month)-1, 1, 0, 0, 0, 0, time.UTC)
-		h.ChangeTimesheet(query, prevMonth, nil)
-	default:
-		logrus.Error("Unknown button")
-		return
-	}
+	newDate := time.Date(
+		year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	h.ChangeTimesheet(query, newDate, nil, specialButtonCallbackData.DoctorID)
+}
+
+func (h *TelegramBotHandler) ChoiceDayCallback(query *tgbotapi.CallbackQuery) {
+	
 }
 
 func (h *TelegramBotHandler) BackCallback(query *tgbotapi.CallbackQuery) {

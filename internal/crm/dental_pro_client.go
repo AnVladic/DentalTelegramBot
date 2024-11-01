@@ -13,6 +13,12 @@ import (
 type IDentalProClient interface {
 	Timesheet(startDate, endDate time.Time) ([]TimesheetResponse, error)
 	DoctorsList() ([]Doctor, error)
+	DoctorWorkSchedule(date time.Time, doctorID int64) ([]WorkSchedule, error)
+	AvailableAppointments(
+		userID int64, doctorIDS []int64, isPlanned bool) (map[int64]map[int64]Appointment, error)
+
+	CreatePatient(name, surname string, phone string) (Patient, error)
+	PatientByPhone(phone string) (Patient, error)
 }
 
 type DentalProClient struct {
@@ -21,13 +27,23 @@ type DentalProClient struct {
 }
 
 type TimesheetResponse struct {
-	Id           int64     `json:"id"`
+	ID           int64     `json:"id"`
 	PlannedStart time.Time `json:"plannedStart"`
 	PlannedEnd   time.Time `json:"plannedEnd"`
 	ActualStart  time.Time `json:"actualStart"`
 	ActualEnd    time.Time `json:"actualEnd"`
 	UserID       int64     `json:"userID"`
 	BranchID     int64     `json:"branchID"`
+}
+
+type Appointment struct {
+	ID             int     `json:"id"`
+	Cost           float64 `json:"cost"`
+	Name           string  `json:"name"`
+	Time           int     `json:"time"`
+	Color          string  `json:"color"`
+	DiagnosticType string  `json:"diagnosticType"`
+	IsPlanned      bool    `json:"isPlanned"`
 }
 
 type Doctor struct {
@@ -49,6 +65,24 @@ type Doctor struct {
 	Phone        string            `json:"phone"`
 }
 
+type WorkSchedule struct {
+	TimeStart *time.Time `json:"time_start"`
+	TimeEnd   *time.Time `json:"time_end"`
+	Date      time.Time  `json:"date"`
+	IsWork    bool       `json:"isWork"`
+}
+
+type Patient struct {
+	ExternalID int64      `json:"externalID,omitempty"` // Идентификатор из внешней системы
+	Name       string     `json:"name"`
+	Surname    string     `json:"surname"`
+	SecondName *string    `json:"secondName,omitempty"`
+	Birthday   *time.Time `json:"birthday,omitempty"`
+	Sex        *int       `json:"sex,omitempty"` // Пол (1-мужской, 0-женский, null, если неизвестно)
+	Comments   *string    `json:"comments,omitempty"`
+	Phone      string     `json:"phone"`
+}
+
 func NewDentalProClient(token string, secretKey string, test bool) IDentalProClient {
 	if test {
 		return NewDentalProClientTest(token, secretKey)
@@ -66,6 +100,30 @@ func (c *DentalProClient) ConvertDateToStr(date time.Time) string {
 
 func (c *DentalProClient) DoctorsList() ([]Doctor, error) {
 	return nil, nil
+}
+
+func (c *DentalProClient) AvailableAppointments(
+	userID int64, doctorIDS []int64, isPlanned bool) (map[int64]map[int64]Appointment, error) {
+	// Приемы доступные к записи
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=mobile/records/appointmentsList&target=modal
+	return nil, nil
+}
+
+func (c *DentalProClient) CreatePatient(name, surname string, phone string) (Patient, error) {
+	// Добавление пациента
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=records/createClient&target=modal
+	return Patient{}, nil
+}
+
+func (c *DentalProClient) DoctorWorkSchedule(date time.Time, doctorID int64) ([]WorkSchedule, error) {
+	// url: /api/mobile/doctorSchedule/doctorMonthGraph
+	return nil, nil
+}
+
+func (c *DentalProClient) PatientByPhone(phone string) (Patient, error) {
+	// Отдает пациента по его номеру телефона
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=client_by_phone&target=modal
+	return Patient{}, nil
 }
 
 func (c *DentalProClient) Timesheet(startDate, endDate time.Time) ([]TimesheetResponse, error) {
@@ -100,13 +158,13 @@ func (c *DentalProClient) Timesheet(startDate, endDate time.Time) ([]TimesheetRe
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %v", err)
+		return nil, fmt.Errorf("error reading response body: %w", err)
 	}
 
 	var responseData []TimesheetResponse
 	err = json.Unmarshal(responseBody, &responseData)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshaling JSON: %v", err)
+		return nil, fmt.Errorf("error unmarshaling JSON: %w", err)
 	}
 
 	return responseData, nil

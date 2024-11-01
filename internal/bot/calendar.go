@@ -14,38 +14,20 @@ const BTN_NEXT = ">"
 
 type SpecialButtonCallbackData struct {
 	CallbackData
-	Button string `json:"b"`
-	Month  string `json:"m"`
+	Month    string `json:"m"`
+	DoctorID int64  `json:"d"`
 }
 
-func GenerateCalendar(year int, month time.Month) tgbotapi.InlineKeyboardMarkup {
+func GenerateCalendar(year int, month time.Month, doctorID int64) tgbotapi.InlineKeyboardMarkup {
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
 	keyboard = addMonthYearRow(year, month, keyboard)
 	keyboard = addDaysNamesRow(keyboard)
 	keyboard = generateMonth(year, int(month), keyboard, nil)
 	keyboard = addSpecialButtons(year, int(month), keyboard, SpecialButtonCallbackData{
 		CallbackData: CallbackData{Command: "switch_timesheet_month"},
+		DoctorID:     doctorID,
 	}, true, true)
 	return keyboard
-}
-
-func HandlerPrevButton(year int, month time.Month) (tgbotapi.InlineKeyboardMarkup, int, time.Month) {
-	if month != 1 {
-		month--
-	} else {
-		month = 12
-		year--
-	}
-	return GenerateCalendar(year, month), year, month
-}
-
-func HandlerNextButton(year int, month time.Month) (tgbotapi.InlineKeyboardMarkup, int, time.Month) {
-	if month != 12 {
-		month++
-	} else {
-		year++
-	}
-	return GenerateCalendar(year, month), year, month
 }
 
 func addMonthYearRow(year int, month time.Month, keyboard tgbotapi.InlineKeyboardMarkup) tgbotapi.InlineKeyboardMarkup {
@@ -132,9 +114,14 @@ func addSpecialButtons(
 	year, month int, keyboard tgbotapi.InlineKeyboardMarkup, data SpecialButtonCallbackData, addPrev, addNext bool,
 ) tgbotapi.InlineKeyboardMarkup {
 	var rowDays = []tgbotapi.InlineKeyboardButton{}
-	data.Month = fmt.Sprintf("%v.%v", year, month)
 	if addPrev {
-		data.Button = BTN_PREV
+		prevMonth := month - 1
+		prevYear := year
+		if prevMonth < 1 {
+			prevMonth = 12
+			prevYear = year - 1
+		}
+		data.Month = fmt.Sprintf("%v.%v", prevYear, prevMonth)
 		marshalData, err := json.Marshal(data)
 		if err != nil {
 			logrus.Error(err)
@@ -144,7 +131,13 @@ func addSpecialButtons(
 		rowDays = append(rowDays, btnPrev)
 	}
 	if addNext {
-		data.Button = BTN_NEXT
+		nextMonth := month + 1
+		nextYear := year
+		if nextMonth > 12 {
+			nextMonth = 1
+			nextYear = year + 1
+		}
+		data.Month = fmt.Sprintf("%v.%v", nextYear, nextMonth)
 		marshalData, err := json.Marshal(data)
 		if err != nil {
 			logrus.Error(err)
