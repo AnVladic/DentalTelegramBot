@@ -61,7 +61,7 @@ func (r *Router) StartListening() {
 				case "switch_timesheet_month":
 					r.tgBotHandler.SwitchTimesheetMonthCallback(update.CallbackQuery)
 				case "select_doctor":
-					r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
+					r.tgBotHandler.ShowAppointments(update.CallbackQuery)
 				case "day":
 					r.tgBotHandler.ChoiceDayCallback(update.CallbackQuery)
 				case "back":

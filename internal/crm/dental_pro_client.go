@@ -37,7 +37,7 @@ type TimesheetResponse struct {
 }
 
 type Appointment struct {
-	ID             int     `json:"id"`
+	ID             int64   `json:"id"`
 	Cost           float64 `json:"cost"`
 	Name           string  `json:"name"`
 	Time           int     `json:"time"`

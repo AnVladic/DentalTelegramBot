@@ -1,13 +1,17 @@
 package bot
 
 type UserTexts struct {
-	Welcome            string
-	Cancel             string
-	Calendar           string
-	PhoneNumberRequest string
-	Back               string
-	Wait               string
-	InternalError      string
+	Welcome             string
+	Cancel              string
+	Calendar            string
+	PhoneNumberRequest  string
+	Back                string
+	Wait                string
+	ChooseDoctor        string
+	DontHasAppointments string
+	ChooseAppointments  string
+
+	InternalError string
 }
 
 func NewUserTexts() *UserTexts {
@@ -26,10 +30,15 @@ func NewUserTexts() *UserTexts {
 
 		Calendar: "Выберите нужный день",
 
-		PhoneNumberRequest: "Чтобы мы могли с вами взаимодействовать дальше, пожалуйста, " +
-			"поделитесь номером телефона 📱",
+		PhoneNumberRequest: "Пожалуйста, укажите ваш номер телефона 📱. Он понадобится для подтверждения вашей регистрации и редактирования записи.",
 
 		Back: "Назад",
+
+		ChooseDoctor: "Пожалуйста, выберите врача для записи. Вы можете выбрать из доступных специалистов ниже 👇",
+
+		DontHasAppointments: "К сожалению, у врача %s пока нет доступных приемов 😔.",
+
+		ChooseAppointments: "Пожалуйста, выберите желаемый прием 🌟.",
 
 		Wait: "Секунду...",
 

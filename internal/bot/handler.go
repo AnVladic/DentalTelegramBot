@@ -34,7 +34,7 @@ func (h *TelegramBotHandler) StartCommandHandler(message *tgbotapi.Message, chat
 		ID:       -1,
 		TgUserID: message.From.ID,
 	}
-	repository := database.UserRepository{Db: h.db}
+	repository := database.UserRepository{DB: h.db}
 	err := repository.CreateUser(&user)
 	if err != nil {
 		logrus.Error(err)
@@ -65,7 +65,7 @@ func (h *TelegramBotHandler) RegisterCommandHandler(message *tgbotapi.Message, c
 		"func":   "RegisterCommandHandler",
 	})
 
-	repository := database.UserRepository{Db: h.db}
+	repository := database.UserRepository{DB: h.db}
 	_, err := repository.GetUserByTelegramID(message.From.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		h.RequestPhoneNumber(message)
@@ -114,7 +114,7 @@ func (h *TelegramBotHandler) GetPhoneNumber(
 	}
 
 	phoneNumber := message.Contact.PhoneNumber
-	repository := database.UserRepository{Db: h.db}
+	repository := database.UserRepository{DB: h.db}
 	err := repository.UpsertPhoneByTelegramID(message.From.ID, phoneNumber)
 	if err != nil {
 		logrus.Error(err)

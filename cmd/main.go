@@ -53,6 +53,7 @@ func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.D
 	router := bot.NewRouter(tgBot, telegramBotHandler)
 
 	go bot.CleanupUserStates(router.ChatStatesMu, router.TgChatStates)
+	fmt.Println("Server is ready")
 	router.StartListening()
 }
 

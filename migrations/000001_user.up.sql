@@ -7,3 +7,23 @@ CREATE TABLE "User" (
     "lastname" VARCHAR(256),
     "phone" VARCHAR(20)
 );
+
+
+CREATE TABLE "Doctor" (
+      "id" BIGINT PRIMARY KEY,
+      "fio" VARCHAR(256) NOT NULL
+);
+
+
+CREATE TABLE "Register" (
+    "id" SERIAL PRIMARY KEY,
+    "user_id" BIGINT NOT NULL REFERENCES "User"("id"),
+    "message_id" BIGINT NOT NULL,
+    "chat_id" BIGINT NOT NULL,
+    "doctor_id" BIGINT REFERENCES "Doctor"("id"),
+    "appointment_id" BIGINT,
+    "datetime" TIMESTAMP,
+
+    UNIQUE (user_id, message_id, chat_id)
+);
+

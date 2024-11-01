@@ -7,6 +7,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 	"main/internal/crm"
+	"main/internal/database"
 	"net/http"
 	"strings"
 	"time"
@@ -175,10 +176,15 @@ func (h *TelegramBotHandler) ChangeTimesheet(
 }
 
 func (h *TelegramBotHandler) ChangeToDoctorsMarkup(message *tgbotapi.Message) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot.service",
+		"func":   "ChangeToDoctorsMarkup",
+	})
+
 	doctors, err := h.dentalProClient.DoctorsList()
 	if err != nil {
 		_, _ = h.Send(tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError), false)
-		logrus.Print(err)
+		log.Error(err)
 		return
 	}
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
@@ -188,6 +194,16 @@ func (h *TelegramBotHandler) ChangeToDoctorsMarkup(message *tgbotapi.Message) {
 			DoctorID:     doctor.ID,
 		}
 		bytesData, _ := json.Marshal(data)
+
+		doctorRepo := database.DoctorRepository{DB: h.db}
+		err := doctorRepo.Upsert(database.Doctor{
+			ID:  doctor.ID,
+			FIO: doctor.FIO,
+		})
+		if h.checkAndLogError(err, log, message, "") {
+			return
+		}
+
 		title := fmt.Sprintf(
 			"%s - %s", doctor.FIO, strings.Join(GetMapValues(doctor.Departments), ", "))
 		btn := tgbotapi.NewInlineKeyboardButtonData(title, string(bytesData))
@@ -195,7 +211,7 @@ func (h *TelegramBotHandler) ChangeToDoctorsMarkup(message *tgbotapi.Message) {
 		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 	}
 	response := tgbotapi.NewEditMessageTextAndMarkup(message.Chat.ID, message.MessageID,
-		"Пожалуйста, выберите врача для записи. Вы можете выбрать из доступных специалистов ниже 👇",
+		h.userTexts.ChooseDoctor,
 		keyboard)
 	_, _ = h.Edit(response, true)
 }
@@ -215,4 +231,14 @@ func (h *TelegramBotHandler) GetOrCreatePatient(name, surname, phone string) (cr
 		}
 	}
 	return patient, false, nil
+}
+
+func (h *TelegramBotHandler) checkAndLogError(
+	err error, log *logrus.Entry, message *tgbotapi.Message, msg string, args ...interface{}) bool {
+	if err != nil {
+		log.WithError(err).Errorf(msg, args...)
+		_, _ = h.Send(tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError), false)
+		return true
+	}
+	return false
 }
