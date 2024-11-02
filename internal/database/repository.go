@@ -85,7 +85,7 @@ func (r *UserRepository) UpdateDentalProIDByTelegramID(tgUserID int64, dentalPro
 func (r *RegisterRepository) ScanAll(row *sql.Row, register *Register) error {
 	return row.Scan(
 		&register.ID, &register.UserID, &register.MessageID, &register.ChatID,
-		&register.ChatID, &register.AppointmentID, &register.Datetime,
+		&register.DoctorID, &register.AppointmentID, &register.Datetime,
 	)
 }
 
@@ -148,6 +148,17 @@ func (r *RegisterRepository) UpsertDoctorID(register Register) (*Register, error
 	}
 
 	return updatedRegister, nil
+}
+
+func (r *RegisterRepository) UpdateAppointmentID(register Register) error {
+	query := `
+        UPDATE "Register"
+		SET appointment_id = ($1)
+		WHERE user_id = ($2) and chat_id = ($3) and message_id = ($4);
+    `
+
+	_, err := r.DB.Exec(query, register.AppointmentID, register.UserID, register.ChatID, register.MessageID)
+	return err
 }
 
 func (r *DoctorRepository) Get(id int64) (*Doctor, error) {

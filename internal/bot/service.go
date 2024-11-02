@@ -123,7 +123,6 @@ func (h *TelegramBotHandler) GenerateTimesheetCalendar(
 		}
 		data := TelegramChoiceDayCallback{
 			CallbackData{"day"},
-			doctorID,
 			fmt.Sprintf("%v.%v.%v", year, month, day),
 		}
 		dataBytes, _ := json.Marshal(data)
@@ -241,4 +240,146 @@ func (h *TelegramBotHandler) checkAndLogError(
 		return true
 	}
 	return false
+}
+
+func (h *TelegramBotHandler) parseDoctorCallbackData(
+	query *tgbotapi.CallbackQuery) (TelegramBotDoctorCallbackData, error) {
+	var data TelegramBotDoctorCallbackData
+	err := json.Unmarshal([]byte(query.Data), &data)
+	return data, err
+}
+
+func (h *TelegramBotHandler) getOrCreateUser(
+	tgUserID int64, message *tgbotapi.Message, log *logrus.Entry) (*database.User, error) {
+	repository := database.UserRepository{DB: h.db}
+	user, _, err := repository.GetOrCreateByTelegramID(database.User{TgUserID: tgUserID})
+	if h.checkAndLogError(err, log, message, "GetOrCreateByTelegramID Unknown error") {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (h *TelegramBotHandler) upsertRegisterDoctorID(
+	userID int64, chatID int64, messageID int, doctorID int64, message *tgbotapi.Message, log *logrus.Entry,
+) bool {
+	registerRepo := database.RegisterRepository{DB: h.db}
+	_, err := registerRepo.UpsertDoctorID(database.Register{
+		UserID:    userID,
+		ChatID:    chatID,
+		MessageID: messageID,
+		DoctorID:  &doctorID,
+	})
+	return !h.checkAndLogError(err, log, message, "UpsertDoctorID %d", doctorID)
+}
+
+func (h *TelegramBotHandler) getAvailableAppointments(
+	user *database.User, doctorID int64, data string, log *logrus.Entry, message *tgbotapi.Message,
+) (map[int64]map[int64]crm.Appointment, error) {
+	var clientID int64 = 1
+	if user.DentalProID != nil && *user.DentalProID > 0 {
+		clientID = *user.DentalProID
+	}
+	appointments, err := h.dentalProClient.AvailableAppointments(clientID, []int64{doctorID}, false)
+	if h.checkAndLogError(err, log, message, "Get Appointments error, %s", data) {
+		return nil, err
+	}
+	return appointments, nil
+}
+
+func (h *TelegramBotHandler) createAppointmentButtons(
+	appointments map[int64]map[int64]crm.Appointment,
+	query *tgbotapi.CallbackQuery, log *logrus.Entry,
+) tgbotapi.InlineKeyboardMarkup {
+	buttons := make([][]tgbotapi.InlineKeyboardButton, 0)
+	for _, doctorAppointments := range appointments {
+		for _, appointment := range doctorAppointments {
+			data, err := json.Marshal(TelegramChoiceAppointmentCallback{
+				CallbackData{"appointment"},
+				appointment.ID,
+			})
+			if h.checkAndLogError(err, log, query.Message, "Marshal error") {
+				continue
+			}
+
+			text := fmt.Sprintf("(%d мин.) %s", appointment.Time, appointment.Name)
+			button := tgbotapi.NewInlineKeyboardButtonData(text, string(data))
+			buttons = append(buttons, []tgbotapi.InlineKeyboardButton{button})
+		}
+	}
+	keyboard := tgbotapi.InlineKeyboardMarkup{InlineKeyboard: buttons}
+	return h.AddBackButton(keyboard, "doctors")
+}
+
+func (h *TelegramBotHandler) noAppointmentsText(doctorID int64, query *tgbotapi.CallbackQuery, log *logrus.Entry) string {
+	doctorRepo := database.DoctorRepository{DB: h.db}
+	doctor, err := doctorRepo.Get(doctorID)
+	if h.checkAndLogError(err, log, query.Message, "Get Doctor ByID error, %s", query.Data) {
+		return ""
+	}
+	return fmt.Sprintf(h.userTexts.DontHasAppointments, doctor.FIO)
+}
+
+func (h *TelegramBotHandler) parseChoiceAppointmentCallbackData(
+	query *tgbotapi.CallbackQuery, log *logrus.Entry) (*TelegramChoiceAppointmentCallback, error) {
+	var telegramChoiceAppointmentCallback TelegramChoiceAppointmentCallback
+	err := json.Unmarshal([]byte(query.Data), &telegramChoiceAppointmentCallback)
+	if h.checkAndLogError(err, log, query.Message, "TelegramChoiceAppointmentCallback Unmarshal error") {
+		log.Error(err)
+		return nil, err
+	}
+	return &telegramChoiceAppointmentCallback, nil
+}
+
+func (h *TelegramBotHandler) updateAppointmentRegister(
+	user database.User, message *tgbotapi.Message, appointmentID int64, log *logrus.Entry) error {
+
+	registerRepo := database.RegisterRepository{DB: h.db}
+	err := registerRepo.UpdateAppointmentID(database.Register{
+		UserID:        user.ID,
+		ChatID:        message.Chat.ID,
+		MessageID:     message.MessageID,
+		AppointmentID: &appointmentID,
+	})
+	if h.checkAndLogError(err, log, message, "UpdateAppointmentID %d", appointmentID) {
+		return err
+	}
+	return nil
+}
+
+func (h *TelegramBotHandler) getRegister(
+	user database.User, message *tgbotapi.Message, log *logrus.Entry) (*database.Register, error) {
+
+	registerRepo := database.RegisterRepository{DB: h.db}
+	register, err := registerRepo.Get(user.ID, message.Chat.ID, message.MessageID)
+	if h.checkAndLogError(
+		err, log, message, "Get Register by %d, %d, %d", user.ID, message.Chat.ID, message.MessageID) {
+		return nil, err
+	}
+	return register, nil
+}
+
+func (h *TelegramBotHandler) getCRMDoctor(
+	doctorID *int64, message *tgbotapi.Message, log *logrus.Entry) (*crm.Doctor, error) {
+	doctors, err := h.dentalProClient.DoctorsList()
+	if err != nil {
+		log.Error(err)
+		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
+		_, _ = h.Send(response, false)
+		return nil, err
+	}
+
+	if doctorID == nil {
+		log.Error("doctor ID is nil")
+		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
+		_, _ = h.Send(response, false)
+		return nil, err
+	}
+
+	doctor := crm.GetDoctorByID(doctors, *doctorID)
+	if doctor == nil {
+		log.Error("Doctor doest found")
+		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
+		_, _ = h.Send(response, false)
+	}
+	return doctor, nil
 }
