@@ -13,10 +13,11 @@ type DentalProClientTest struct {
 
 	mu *sync.Mutex
 
-	Doctors      []Doctor
-	Schedule     map[int64][]WorkSchedule
-	Appointments map[int64]map[int64]Appointment
-	Patients     map[int64]Patient
+	Doctors          []Doctor
+	Schedule         map[int64][]WorkSchedule
+	Appointments     map[int64]map[int64]Appointment
+	Patients         map[int64]Patient
+	AllFreeIntervals map[time.Time]map[int64]map[string]TimeRange
 }
 
 type RequestError struct {
@@ -26,6 +27,99 @@ type RequestError struct {
 
 func (e *RequestError) Error() string {
 	return fmt.Sprintf("error %d: %s", e.Code, e.Message)
+}
+
+//nolint:funlen
+func GetTestFreeIntervals() map[time.Time]map[int64]map[string]TimeRange {
+	data := map[string]struct {
+		Begin string
+		End   string
+	}{
+		"10:00-10:15": {"10:00", "10:15"},
+		"10:05-10:20": {"10:05", "10:20"},
+		"10:10-10:25": {"10:10", "10:25"},
+		"10:15-10:30": {"10:15", "10:30"},
+		"10:20-10:35": {"10:20", "10:35"},
+		"10:25-10:40": {"10:25", "10:40"},
+		"10:30-10:45": {"10:30", "10:45"},
+		"10:35-10:50": {"10:35", "10:50"},
+		"10:40-10:55": {"10:40", "10:55"},
+		"10:45-11:00": {"10:45", "11:00"},
+		"10:50-11:05": {"10:50", "11:05"},
+		"10:55-11:10": {"10:55", "11:10"},
+		"11:00-11:15": {"11:00", "11:15"},
+		"11:05-11:20": {"11:05", "11:20"},
+		"11:10-11:25": {"11:10", "11:25"},
+		"11:15-11:30": {"11:15", "11:30"},
+		"11:20-11:35": {"11:20", "11:35"},
+		"11:25-11:40": {"11:25", "11:40"},
+		"11:30-11:45": {"11:30", "11:45"},
+		"11:35-11:50": {"11:35", "11:50"},
+		"11:40-11:55": {"11:40", "11:55"},
+		"11:45-12:00": {"11:45", "12:00"},
+		"11:50-12:05": {"11:50", "12:05"},
+		"11:55-12:10": {"11:55", "12:10"},
+		"12:00-12:15": {"12:00", "12:15"},
+		"12:05-12:20": {"12:05", "12:20"},
+		"12:10-12:25": {"12:10", "12:25"},
+		"12:15-12:30": {"12:15", "12:30"},
+		"12:20-12:35": {"12:20", "12:35"},
+		"12:25-12:40": {"12:25", "12:40"},
+		"12:30-12:45": {"12:30", "12:45"},
+		"12:35-12:50": {"12:35", "12:50"},
+		"12:40-12:55": {"12:40", "12:55"},
+		"12:45-13:00": {"12:45", "13:00"},
+		"12:50-13:05": {"12:50", "13:05"},
+		"12:55-13:10": {"12:55", "13:10"},
+		"13:00-13:15": {"13:00", "13:15"},
+		"13:05-13:20": {"13:05", "13:20"},
+		"13:10-13:25": {"13:10", "13:25"},
+		"13:15-13:30": {"13:15", "13:30"},
+		"13:20-13:35": {"13:20", "13:35"},
+		"13:25-13:40": {"13:25", "13:40"},
+		"13:30-13:45": {"13:30", "13:45"},
+		"13:35-13:50": {"13:35", "13:50"},
+		"13:40-13:55": {"13:40", "13:55"},
+		"13:45-14:00": {"13:45", "14:00"},
+		"13:50-14:05": {"13:50", "14:05"},
+		"13:55-14:10": {"13:55", "14:10"},
+		"14:00-14:15": {"14:00", "14:15"},
+		"14:05-14:20": {"14:05", "14:20"},
+		"14:10-14:25": {"14:10", "14:25"},
+		"14:15-14:30": {"14:15", "14:30"},
+		"14:20-14:35": {"14:20", "14:35"},
+		"14:25-14:40": {"14:25", "14:40"},
+		"14:30-14:45": {"14:30", "14:45"},
+		"14:35-14:50": {"14:35", "14:50"},
+		"14:40-14:55": {"14:40", "14:55"},
+		"14:45-15:00": {"14:45", "15:00"},
+		"14:50-15:05": {"14:50", "15:05"},
+		"14:55-15:10": {"14:55", "15:10"},
+		"15:00-15:15": {"15:00", "15:15"},
+		"15:05-15:20": {"15:05", "15:20"},
+		"15:10-15:25": {"15:10", "15:25"},
+		"15:15-15:30": {"15:15", "15:30"},
+		"15:20-15:35": {"15:20", "15:35"},
+		"15:25-15:40": {"15:25", "15:40"},
+		"15:30-15:45": {"15:30", "15:45"},
+		"15:35-15:50": {"15:35", "15:50"},
+		"15:40-15:55": {"15:40", "15:55"},
+		"15:45-16:00": {"15:45", "16:00"},
+	}
+
+	timeSlots := map[string]TimeRange{}
+
+	layout := "15:04"
+	for key, val := range data {
+		begin, _ := time.Parse(layout, val.Begin)
+		end, _ := time.Parse(layout, val.End)
+		timeSlots[key] = TimeRange{Begin: begin, End: end}
+	}
+	return map[time.Time]map[int64]map[string]TimeRange{
+		time.Date(2024, 11, 5, 0, 0, 0, 0, time.UTC): {
+			2: timeSlots,
+		},
+	}
 }
 
 func GetTestDoctors() []Doctor {
@@ -142,12 +236,13 @@ func GetTestAppointments() map[int64]map[int64]Appointment {
 
 func NewDentalProClientTest(token, secretKey string) *DentalProClientTest {
 	return &DentalProClientTest{
-		Token:        token,
-		SecretKey:    secretKey,
-		Doctors:      GetTestDoctors(),
-		Schedule:     GetTestSchedule(),
-		Appointments: GetTestAppointments(),
-		mu:           &sync.Mutex{},
+		Token:            token,
+		SecretKey:        secretKey,
+		Doctors:          GetTestDoctors(),
+		Schedule:         GetTestSchedule(),
+		Appointments:     GetTestAppointments(),
+		AllFreeIntervals: GetTestFreeIntervals(),
+		mu:               &sync.Mutex{},
 	}
 }
 
@@ -194,7 +289,6 @@ func (c *DentalProClientTest) DoctorWorkSchedule(date time.Time, doctorID int64)
 
 func (c *DentalProClientTest) AvailableAppointments(
 	userID int64, doctorIDS []int64, isPlanned bool) (map[int64]map[int64]Appointment, error) {
-
 	result := make(map[int64]map[int64]Appointment)
 
 	for _, doctorID := range doctorIDS {
@@ -211,10 +305,6 @@ func (c *DentalProClientTest) AvailableAppointments(
 				result[doctorID] = filteredAppointments
 			}
 		}
-	}
-
-	if len(result) == 0 {
-		return nil, fmt.Errorf("no available appointments found for userID: %d", userID)
 	}
 
 	return result, nil
@@ -260,4 +350,38 @@ func parseTime(timeStr, layout string) *time.Time {
 	}
 	t, _ := time.Parse(layout, timeStr)
 	return &t
+}
+
+func (c *DentalProClientTest) FreeIntervals(
+	doctorID int64, date time.Time, duration int) ([]TimeRange, error) {
+	// Доступные к записи интервалы
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=mobile/records/appointmentsFreeIntervals&target=modal
+
+	dayIntervals, ok := c.AllFreeIntervals[date]
+	if !ok {
+		return []TimeRange{}, nil
+	}
+	doctorIntervals, ok := dayIntervals[doctorID]
+	if !ok {
+		return []TimeRange{}, nil
+	}
+	step := duration / 15
+	if step == 0 {
+		step = 1
+	}
+	var result []TimeRange
+	count := 0
+	var mergedInterval TimeRange
+	for _, interval := range doctorIntervals {
+		if count == 0 {
+			mergedInterval = TimeRange{Begin: interval.Begin}
+		}
+		count++
+		if count == step {
+			mergedInterval.End = interval.End
+			result = append(result, mergedInterval)
+			count = 0
+		}
+	}
+	return result, nil
 }

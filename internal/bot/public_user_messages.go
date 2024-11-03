@@ -10,6 +10,8 @@ type UserTexts struct {
 	ChooseDoctor        string
 	DontHasAppointments string
 	ChooseAppointments  string
+	DontHasIntervals    string
+	ChooseInterval      string
 
 	InternalError string
 }
@@ -39,6 +41,10 @@ func NewUserTexts() *UserTexts {
 		DontHasAppointments: "К сожалению, у врача %s пока нет доступных приемов 😔.",
 
 		ChooseAppointments: "Пожалуйста, выберите желаемый прием 🌟.",
+
+		DontHasIntervals: "День %s\nВрач %s\nК сожалению, у врача %s пока нет свободных интервалов в этот день. 😔🗓️",
+
+		ChooseInterval: "День %s\nВрач %s\nПожалуйста, выберите свободное время. 🕒✨",
 
 		Wait: "Секунду...",
 

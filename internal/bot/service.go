@@ -9,6 +9,7 @@ import (
 	"main/internal/crm"
 	"main/internal/database"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -124,12 +125,13 @@ func (h *TelegramBotHandler) GenerateTimesheetCalendar(
 		data := TelegramChoiceDayCallback{
 			CallbackData{"day"},
 			fmt.Sprintf("%v.%v.%v", year, month, day),
+			0,
 		}
 		dataBytes, _ := json.Marshal(data)
 		return btnText, string(dataBytes)
 	}
 
-	specialButtonCallbackData := SpecialButtonCallbackData{
+	specialButtonCallbackData := TelegramCalendarSpecialButtonCallback{
 		CallbackData: CallbackData{Command: "switch_timesheet_month"},
 		DoctorID:     doctorID,
 	}
@@ -330,9 +332,31 @@ func (h *TelegramBotHandler) parseChoiceAppointmentCallbackData(
 	return &telegramChoiceAppointmentCallback, nil
 }
 
-func (h *TelegramBotHandler) updateAppointmentRegister(
-	user database.User, message *tgbotapi.Message, appointmentID int64, log *logrus.Entry) error {
+func (h *TelegramBotHandler) parseTelegramBotDoctorCallbackData(
+	query *tgbotapi.CallbackQuery, log *logrus.Entry) (*TelegramBotDoctorCallbackData, error) {
+	var telegramBotDoctorCallbackData TelegramBotDoctorCallbackData
+	err := json.Unmarshal([]byte(query.Data), &telegramBotDoctorCallbackData)
+	if h.checkAndLogError(err, log, query.Message, "TelegramBotDoctorCallbackData Unmarshal error") {
+		log.Error(err)
+		return nil, err
+	}
+	return &telegramBotDoctorCallbackData, nil
+}
 
+func (h *TelegramBotHandler) parseTelegramChoiceDayCallbackData(
+	query *tgbotapi.CallbackQuery, log *logrus.Entry) (*TelegramChoiceDayCallback, error) {
+	var telegramChoiceDayCallback TelegramChoiceDayCallback
+	err := json.Unmarshal([]byte(query.Data), &telegramChoiceDayCallback)
+	if h.checkAndLogError(err, log, query.Message, "TelegramChoiceDayCallback Unmarshal error") {
+		log.Error(err)
+		return nil, err
+	}
+	return &telegramChoiceDayCallback, nil
+}
+
+func (h *TelegramBotHandler) updateAppointmentRegister(
+	user database.User, message *tgbotapi.Message, appointmentID int64, log *logrus.Entry,
+) error {
 	registerRepo := database.RegisterRepository{DB: h.db}
 	err := registerRepo.UpdateAppointmentID(database.Register{
 		UserID:        user.ID,
@@ -347,8 +371,8 @@ func (h *TelegramBotHandler) updateAppointmentRegister(
 }
 
 func (h *TelegramBotHandler) getRegister(
-	user database.User, message *tgbotapi.Message, log *logrus.Entry) (*database.Register, error) {
-
+	user database.User, message *tgbotapi.Message, log *logrus.Entry,
+) (*database.Register, error) {
 	registerRepo := database.RegisterRepository{DB: h.db}
 	register, err := registerRepo.Get(user.ID, message.Chat.ID, message.MessageID)
 	if h.checkAndLogError(
@@ -369,7 +393,8 @@ func (h *TelegramBotHandler) getCRMDoctor(
 	}
 
 	if doctorID == nil {
-		log.Error("doctor ID is nil")
+		err := fmt.Errorf("doctor ID is nil")
+		log.Error(err)
 		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
 		_, _ = h.Send(response, false)
 		return nil, err
@@ -382,4 +407,164 @@ func (h *TelegramBotHandler) getCRMDoctor(
 		_, _ = h.Send(response, false)
 	}
 	return doctor, nil
+}
+
+func (h *TelegramBotHandler) getDoctor(
+	doctorID *int64, message *tgbotapi.Message, log *logrus.Entry) (*database.Doctor, error) {
+	if doctorID == nil {
+		err := fmt.Errorf("doctor ID is nil")
+		h.checkAndLogError(err, log, message, "doctor ID is nil")
+		return nil, err
+	}
+
+	doctorRepo := database.DoctorRepository{DB: h.db}
+	doctor, err := doctorRepo.Get(*doctorID)
+	if h.checkAndLogError(err, log, message, "Get Doctor By %d", doctorID) {
+		return nil, err
+	}
+	return doctor, nil
+}
+
+func (h *TelegramBotHandler) parseDate(
+	dateStr string, message *tgbotapi.Message, log *logrus.Entry) (time.Time, error) {
+	date, err := time.Parse("2006.1.2", dateStr)
+	if h.checkAndLogError(err, log, message, "date str is %s", dateStr) {
+		return date, err
+	}
+	return date, nil
+}
+
+func (h *TelegramBotHandler) getCRMFreeIntervals(
+	doctorID *int64, date time.Time, duration int,
+	message *tgbotapi.Message, log *logrus.Entry) ([]crm.TimeRange, error) {
+	if doctorID == nil {
+		err := fmt.Errorf("doctor ID is nil")
+		log.Error(err)
+		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
+		_, _ = h.Send(response, false)
+		return nil, err
+	}
+
+	freeIntervals, err := h.dentalProClient.FreeIntervals(*doctorID, date, duration)
+	sort.Slice(freeIntervals, func(i, j int) bool {
+		return freeIntervals[i].Begin.Before(freeIntervals[j].Begin)
+	})
+	if err != nil {
+		log.Error(err)
+		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
+		_, _ = h.Send(response, false)
+		return nil, err
+	}
+	return freeIntervals, nil
+}
+
+func (h *TelegramBotHandler) createSpacialButton(text, data string) tgbotapi.InlineKeyboardButton {
+	dataBytes, _ := json.Marshal(TelegramSpecialCallback{
+		CallbackData{"spacial"},
+		data,
+	})
+	button := tgbotapi.NewInlineKeyboardButtonData(text, string(dataBytes))
+	return button
+}
+
+func (h *TelegramBotHandler) createDataString(
+	data interface{}, message *tgbotapi.Message, log *logrus.Entry) (string, error) {
+	dataBytes, err := json.Marshal(data)
+	if h.checkAndLogError(err, log, message, "Marshal json") {
+		return "", err
+	}
+	return string(dataBytes), nil
+}
+
+func (h *TelegramBotHandler) paginateIntervals(
+	intervals []crm.TimeRange, choiceData TelegramChoiceDayCallback, maxIntervalsCount int) []crm.TimeRange {
+	start := maxIntervalsCount * choiceData.Step
+	end := start + maxIntervalsCount
+	if end > len(intervals) {
+		end = len(intervals)
+	}
+	if start > len(intervals) {
+		start = len(intervals)
+	}
+	return intervals[start:end]
+}
+
+func (h *TelegramBotHandler) generateIntervalButtons(
+	intervals []crm.TimeRange) ([][]tgbotapi.InlineKeyboardButton, error) {
+	buttons := make([][]tgbotapi.InlineKeyboardButton, 0)
+	rowLen := 3
+	for i, interval := range intervals {
+		if i%rowLen == 0 {
+			buttons = append(buttons, make([]tgbotapi.InlineKeyboardButton, 0, rowLen))
+		}
+		beginStr := interval.Begin.Format("15:04")
+		endStr := interval.End.Format("15:04")
+		data, err := json.Marshal(TelegramChoiceIntervalCallback{
+			CallbackData{"interval"},
+			beginStr,
+		})
+		if err != nil {
+			return nil, err
+		}
+		text := fmt.Sprintf("%s - %s", beginStr, endStr)
+		button := tgbotapi.NewInlineKeyboardButtonData(text, string(data))
+		buttons[len(buttons)-1] = append(buttons[len(buttons)-1], button)
+	}
+	return buttons, nil
+}
+
+func (h *TelegramBotHandler) createNavigationButtons(
+	intervals []crm.TimeRange,
+	choiceData TelegramChoiceDayCallback,
+	maxIntervalsCount int,
+	message *tgbotapi.Message,
+	log *logrus.Entry,
+) ([]tgbotapi.InlineKeyboardButton, error) {
+	var specialButtons []tgbotapi.InlineKeyboardButton
+	if choiceData.Step > 0 {
+		prevChoiceData := choiceData
+		prevChoiceData.Step--
+		dataStr, err := h.createDataString(prevChoiceData, message, log)
+		if err != nil {
+			return nil, err
+		}
+		specialButtons = append(specialButtons, tgbotapi.NewInlineKeyboardButtonData(BTN_PREV, dataStr))
+	}
+	if len(intervals) > maxIntervalsCount*(choiceData.Step+1) {
+		nextChoiceData := choiceData
+		nextChoiceData.Step++
+		dataStr, err := h.createDataString(nextChoiceData, message, log)
+		if err != nil {
+			return nil, err
+		}
+		specialButtons = append(specialButtons, tgbotapi.NewInlineKeyboardButtonData(BTN_NEXT, dataStr))
+	}
+	return specialButtons, nil
+}
+
+func (h *TelegramBotHandler) createFreeIntervalsButtons(
+	intervals []crm.TimeRange,
+	choiceData TelegramChoiceDayCallback,
+	message *tgbotapi.Message,
+	log *logrus.Entry,
+) (tgbotapi.InlineKeyboardMarkup, error) {
+	maxIntervalsCount := 24
+	intervalSubset := h.paginateIntervals(intervals, choiceData, maxIntervalsCount)
+	intervalButtons, err := h.generateIntervalButtons(intervalSubset)
+	if err != nil {
+		return tgbotapi.InlineKeyboardMarkup{}, err
+	}
+
+	keyboard := tgbotapi.InlineKeyboardMarkup{InlineKeyboard: intervalButtons}
+
+	if len(intervals) > maxIntervalsCount {
+		navigationButtons, err := h.createNavigationButtons(
+			intervals, choiceData, maxIntervalsCount, message, log)
+		if err != nil {
+			return tgbotapi.InlineKeyboardMarkup{}, err
+		}
+		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, navigationButtons)
+	}
+
+	return h.AddBackButton(keyboard, "calendar"), nil
 }

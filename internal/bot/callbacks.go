@@ -8,6 +8,17 @@ import (
 	"time"
 )
 
+type TelegramCalendarSpecialButtonCallback struct {
+	CallbackData
+	Month    string `json:"m"`
+	DoctorID int64  `json:"d"`
+}
+
+type TelegramSpecialCallback struct {
+	CallbackData
+	Data string
+}
+
 type TelegramBotDoctorCallbackData struct {
 	CallbackData
 	DoctorID int64 `json:"d"`
@@ -21,11 +32,17 @@ type TelegramBackCallback struct {
 type TelegramChoiceDayCallback struct {
 	CallbackData
 	Date string `json:"dt"`
+	Step int    `json:"s"`
 }
 
 type TelegramChoiceAppointmentCallback struct {
 	CallbackData
 	AppointmentID int64 `json:"a"`
+}
+
+type TelegramChoiceIntervalCallback struct {
+	CallbackData
+	StartTime string `json:"s"`
 }
 
 func (h *TelegramBotHandler) ShowCalendarCallback(query *tgbotapi.CallbackQuery) {
@@ -69,7 +86,7 @@ func (h *TelegramBotHandler) ShowCalendarCallback(query *tgbotapi.CallbackQuery)
 }
 
 func (h *TelegramBotHandler) SwitchTimesheetMonthCallback(query *tgbotapi.CallbackQuery) {
-	var specialButtonCallbackData SpecialButtonCallbackData
+	var specialButtonCallbackData TelegramCalendarSpecialButtonCallback
 	err := json.Unmarshal([]byte(query.Data), &specialButtonCallbackData)
 	if err != nil {
 		logrus.Error(err)
@@ -117,7 +134,7 @@ func (h *TelegramBotHandler) ShowAppointments(query *tgbotapi.CallbackQuery) {
 	keyboard := h.createAppointmentButtons(appointments, query, log)
 
 	text := h.userTexts.ChooseAppointments
-	if len(keyboard.InlineKeyboard) == 0 {
+	if len(appointments) == 0 {
 		text = h.noAppointmentsText(callbackData.DoctorID, query, log)
 	}
 
@@ -126,11 +143,57 @@ func (h *TelegramBotHandler) ShowAppointments(query *tgbotapi.CallbackQuery) {
 }
 
 func (h *TelegramBotHandler) ChoiceDayCallback(query *tgbotapi.CallbackQuery) {
-	//log := logrus.WithFields(logrus.Fields{
-	//	"module": "bot",
-	//	"func":   "ChoiceDayCallback",
-	//})
-	//h.dentalProClient.
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot",
+		"func":   "ChoiceDayCallback",
+	})
+	telegramChoiceDayCallback, err := h.parseTelegramChoiceDayCallbackData(query, log)
+	if err != nil {
+		return
+	}
+
+	user, err := h.getOrCreateUser(query.From.ID, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	register, err := h.getRegister(*user, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	doctor, err := h.getDoctor(register.DoctorID, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	date, err := h.parseDate(telegramChoiceDayCallback.Date, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	intervals, err := h.getCRMFreeIntervals(register.DoctorID, date, 15, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	keyboard, err := h.createFreeIntervalsButtons(
+		intervals, *telegramChoiceDayCallback, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	var text string
+	dataStr := date.Format("02.01.2006")
+	if len(intervals) == 0 {
+		text = fmt.Sprintf(h.userTexts.DontHasIntervals, dataStr, doctor.FIO, doctor.FIO)
+	} else {
+		text = fmt.Sprintf(h.userTexts.ChooseInterval, dataStr, doctor.FIO)
+	}
+
+	edit := tgbotapi.NewEditMessageTextAndMarkup(
+		query.Message.Chat.ID, query.Message.MessageID, text, keyboard)
+	_, _ = h.Edit(edit, true)
 }
 
 func (h *TelegramBotHandler) BackCallback(query *tgbotapi.CallbackQuery) {
@@ -144,5 +207,7 @@ func (h *TelegramBotHandler) BackCallback(query *tgbotapi.CallbackQuery) {
 	switch backCallback.Back {
 	case "doctors":
 		h.ChangeToDoctorsMarkup(query.Message)
+	case "calendar":
+		h.ShowCalendarCallback(query)
 	}
 }

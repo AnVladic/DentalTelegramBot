@@ -12,18 +12,12 @@ import (
 const BTN_PREV = "<"
 const BTN_NEXT = ">"
 
-type SpecialButtonCallbackData struct {
-	CallbackData
-	Month    string `json:"m"`
-	DoctorID int64  `json:"d"`
-}
-
 func GenerateCalendar(year int, month time.Month, doctorID int64) tgbotapi.InlineKeyboardMarkup {
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
 	keyboard = addMonthYearRow(year, month, keyboard)
 	keyboard = addDaysNamesRow(keyboard)
 	keyboard = generateMonth(year, int(month), keyboard, nil)
-	keyboard = addSpecialButtons(year, int(month), keyboard, SpecialButtonCallbackData{
+	keyboard = addSpecialButtons(year, int(month), keyboard, TelegramCalendarSpecialButtonCallback{
 		CallbackData: CallbackData{Command: "switch_timesheet_month"},
 		DoctorID:     doctorID,
 	}, true, true)
@@ -64,8 +58,8 @@ func generateMonth(
 		}
 	}
 
-	firstDay := date(year, month, 0)
-	amountDaysInMonth := date(year, month+1, 0).Day()
+	firstDay := _date(year, month, 0)
+	amountDaysInMonth := _date(year, month+1, 0).Day()
 
 	weekday := int(firstDay.Weekday())
 	var rowDays []tgbotapi.InlineKeyboardButton
@@ -106,12 +100,12 @@ func generateMonth(
 	return keyboard
 }
 
-func date(year, month, day int) time.Time {
+func _date(year, month, day int) time.Time {
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 }
 
 func addSpecialButtons(
-	year, month int, keyboard tgbotapi.InlineKeyboardMarkup, data SpecialButtonCallbackData, addPrev, addNext bool,
+	year, month int, keyboard tgbotapi.InlineKeyboardMarkup, data TelegramCalendarSpecialButtonCallback, addPrev, addNext bool,
 ) tgbotapi.InlineKeyboardMarkup {
 	var rowDays = []tgbotapi.InlineKeyboardButton{}
 	if addPrev {

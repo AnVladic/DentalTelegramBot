@@ -15,10 +15,11 @@ type IDentalProClient interface {
 	DoctorsList() ([]Doctor, error)
 	DoctorWorkSchedule(date time.Time, doctorID int64) ([]WorkSchedule, error)
 	AvailableAppointments(
-		userID int64, doctorIDS []int64, isPlanned bool) (map[int64]map[int64]Appointment, error)
+		userID int64, doctorIDs []int64, isPlanned bool) (map[int64]map[int64]Appointment, error)
 
 	CreatePatient(name, surname string, phone string) (Patient, error)
 	PatientByPhone(phone string) (Patient, error)
+	FreeIntervals(doctorID int64, date time.Time, duration int) ([]TimeRange, error)
 }
 
 type DentalProClient struct {
@@ -83,6 +84,11 @@ type Patient struct {
 	Phone      string     `json:"phone"`
 }
 
+type TimeRange struct {
+	Begin time.Time
+	End   time.Time
+}
+
 func NewDentalProClient(token string, secretKey string, test bool) IDentalProClient {
 	if test {
 		return NewDentalProClientTest(token, secretKey)
@@ -124,6 +130,13 @@ func (c *DentalProClient) PatientByPhone(phone string) (Patient, error) {
 	// Отдает пациента по его номеру телефона
 	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=client_by_phone&target=modal
 	return Patient{}, nil
+}
+
+func (c *DentalProClient) FreeIntervals(
+	doctorID int64, date time.Time, duration int) ([]TimeRange, error) {
+	// Доступные к записи интервалы
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=mobile/records/appointmentsFreeIntervals&target=modal
+	return nil, nil
 }
 
 func (c *DentalProClient) Timesheet(startDate, endDate time.Time) ([]TimesheetResponse, error) {
