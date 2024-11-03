@@ -66,6 +66,8 @@ func (r *Router) StartListening() {
 					r.tgBotHandler.ChoiceDayCallback(update.CallbackQuery)
 				case "appointment":
 					r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
+				case "interval":
+					r.tgBotHandler.RegisterApproveCallback(update.CallbackQuery)
 				case "back":
 					r.tgBotHandler.BackCallback(update.CallbackQuery)
 				default:

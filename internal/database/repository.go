@@ -161,6 +161,17 @@ func (r *RegisterRepository) UpdateAppointmentID(register Register) error {
 	return err
 }
 
+func (r *RegisterRepository) UpdateDatetime(register Register) error {
+	query := `
+        UPDATE "Register"
+		SET datetime = ($1)
+		WHERE user_id = ($2) and chat_id = ($3) and message_id = ($4);
+    `
+
+	_, err := r.DB.Exec(query, register.Datetime, register.UserID, register.ChatID, register.MessageID)
+	return err
+}
+
 func (r *DoctorRepository) Get(id int64) (*Doctor, error) {
 	query := `
         SELECT id, fio

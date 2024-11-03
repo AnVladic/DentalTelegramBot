@@ -15,13 +15,18 @@ type TelegramBotHandler struct {
 	userTexts       UserTexts
 	dentalProClient crm.IDentalProClient
 	db              *sql.DB
+	branchID        int64
 }
 
 func NewTelegramBotHandler(
-	bot *tgbotapi.BotAPI, userTexts UserTexts, dentalProClient crm.IDentalProClient, db *sql.DB,
+	bot *tgbotapi.BotAPI,
+	userTexts UserTexts,
+	dentalProClient crm.IDentalProClient,
+	db *sql.DB,
+	branchID int64,
 ) *TelegramBotHandler {
 	handler := &TelegramBotHandler{
-		bot: bot, userTexts: userTexts, dentalProClient: dentalProClient, db: db,
+		bot: bot, userTexts: userTexts, dentalProClient: dentalProClient, db: db, branchID: branchID,
 	}
 	return handler
 }

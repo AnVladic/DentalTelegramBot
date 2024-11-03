@@ -7,6 +7,7 @@ import (
 	"main/internal/crm"
 	"main/pkg"
 	"os"
+	"strconv"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
@@ -41,15 +42,17 @@ func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.D
 	}
 
 	tgBot, err := tgbotapi.NewBotAPI(botToken)
+	branchID, err := strconv.ParseInt(os.Getenv("BRANCH_ID"), 10, 64)
 	if err != nil {
-		panic(err)
+		branchID = 3
+		logrus.Warnf("BRANCH_ID is nil. Set BRANCH_ID = %d", branchID)
 	}
 
 	tgBot.Debug = debug
 	logrus.Printf("Authorized on account %s", tgBot.Self.UserName)
 
 	userTexts := bot.NewUserTexts()
-	telegramBotHandler := bot.NewTelegramBotHandler(tgBot, *userTexts, dentalProClient, db)
+	telegramBotHandler := bot.NewTelegramBotHandler(tgBot, *userTexts, dentalProClient, db, branchID)
 	router := bot.NewRouter(tgBot, telegramBotHandler)
 
 	go bot.CleanupUserStates(router.ChatStatesMu, router.TgChatStates)

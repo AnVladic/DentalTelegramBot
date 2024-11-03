@@ -1,0 +1,362 @@
+{
+  "method": "mobile/doctor/list",
+  "data": [
+    {
+      "id": 2,
+      "user_id": 26,
+      "is_vip": false,
+      "date_added": "2023-09-12 10:22:40",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": 4500,
+      "branches": {
+        "2": "OOO Cтоматологический центр Хотьково",
+        "3": "ОЛИМП Софрино"
+      },
+      "name": "С",
+      "surname": "Подаева",
+      "second_name": "Евгеньевна",
+      "fio": "Подаева С.Е.",
+      "user_groups": {
+        "1": "Директор",
+        "4": "Администратор",
+        "6": "Врач",
+        "9": "Главврач",
+        "10": "Руководитель КЦ",
+        "24": "Доступ к базе пациентов"
+      },
+      "departments": {
+        "2": "Терапевты"
+      },
+      "photo": "/content/upload/web/11.10.2023/42/mvFile_9181697014727.svg",
+      "phone": "79104754004"
+    },
+    {
+      "id": 3,
+      "user_id": 27,
+      "is_vip": false,
+      "date_added": "2023-09-12 10:22:40",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": 8800,
+      "branches": {
+        "2": "OOO Cтоматологический центр Хотьково"
+      },
+      "name": "Борис",
+      "surname": "Погосян",
+      "second_name": "Камоевич",
+      "fio": "Погосян Б.К.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "6": "Ортопеды"
+      },
+      "photo": null,
+      "phone": "79198296492"
+    },
+    {
+      "id": 5,
+      "user_id": 29,
+      "is_vip": false,
+      "date_added": "2023-09-12 10:22:40",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": 3000,
+      "branches": {
+        "2": "OOO Cтоматологический центр Хотьково"
+      },
+      "name": "Дарья",
+      "surname": "Афанасьева",
+      "second_name": "Владимировна",
+      "fio": "Афанасьева Д.В.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "2": "Терапевты",
+        "3": "Ортодонты",
+        "9": "Детская терапия"
+      },
+      "photo": null,
+      "phone": "79164276603"
+    },
+    {
+      "id": 6,
+      "user_id": 30,
+      "is_vip": false,
+      "date_added": "2023-09-12 10:22:40",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": 22000,
+      "branches": {
+        "2": "OOO Cтоматологический центр Хотьково"
+      },
+      "name": "Антон",
+      "surname": "Нечаев",
+      "second_name": "Юрьевич",
+      "fio": "Нечаев А.Ю.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "1": "Хирурги",
+        "7": "Пародонтологи"
+      },
+      "photo": null,
+      "phone": "79032080616"
+    },
+    {
+      "id": 7,
+      "user_id": 31,
+      "is_vip": false,
+      "date_added": "2023-09-12 10:22:40",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": 4100,
+      "branches": null,
+      "name": "Андрей",
+      "surname": "Голдзицкий",
+      "second_name": "Валерьевич",
+      "fio": "Голдзицкий А.В.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "1": "Хирурги"
+      },
+      "photo": null,
+      "phone": "79267044366"
+    },
+    {
+      "id": 9,
+      "user_id": 43,
+      "is_vip": null,
+      "date_added": "2023-09-20 09:01:01",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": 6000,
+      "branches": null,
+      "name": "Диана",
+      "surname": "Казиева",
+      "second_name": "Габибовна",
+      "fio": "Казиева Д.Г.",
+      "user_groups": null,
+      "departments": {
+        "6": "Ортопеды"
+      },
+      "photo": null,
+      "phone": "79653994777"
+    },
+    {
+      "id": 11,
+      "user_id": 36,
+      "is_vip": null,
+      "date_added": "2023-12-28 08:06:18",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": null,
+      "branches": {
+        "2": "OOO Cтоматологический центр Хотьково"
+      },
+      "name": "Ксения",
+      "surname": "Колесникова",
+      "second_name": "Алексеевна",
+      "fio": "Колесникова К.А.",
+      "user_groups": {
+        "6": "Врач",
+        "8": "Рентген лаборант",
+        "21": "Ассистент",
+        "23": "Старшая медсестра (доступ к складу)"
+      },
+      "departments": {
+        "2": "Терапевты",
+        "11": "Гигиенисты"
+      },
+      "photo": null,
+      "phone": "79999896804"
+    },
+    {
+      "id": 12,
+      "user_id": 70,
+      "is_vip": null,
+      "date_added": "2024-04-04 16:10:49",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": null,
+      "branches": {
+        "3": "ОЛИМП Софрино"
+      },
+      "name": "Наталья",
+      "surname": "Новикова",
+      "second_name": "Викторовна",
+      "fio": "Новикова Н.В.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "11": "Гигиенисты"
+      },
+      "photo": null,
+      "phone": "79171111111"
+    },
+    {
+      "id": 13,
+      "user_id": 73,
+      "is_vip": null,
+      "date_added": "2024-04-25 16:28:40",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": null,
+      "branches": {
+        "2": "OOO Cтоматологический центр Хотьково"
+      },
+      "name": "Анастасия",
+      "surname": "Калинина",
+      "second_name": "Владимировна",
+      "fio": "Калинина А.В.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "1": "Хирурги",
+        "2": "Терапевты"
+      },
+      "photo": "/content/upload/08.06.2024/mvfile_ac3361aa3056e5fd01a6243e4df52f35.jpeg",
+      "phone": "79876544321"
+    },
+    {
+      "id": 14,
+      "user_id": 74,
+      "is_vip": null,
+      "date_added": "2024-04-26 13:28:31",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": null,
+      "branches": {
+        "3": "ОЛИМП Софрино"
+      },
+      "name": "Елена",
+      "surname": "Коченова",
+      "second_name": "Дмитриевна",
+      "fio": "Коченова Е.Д.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "11": "Гигиенисты"
+      },
+      "photo": null,
+      "phone": "78999123456"
+    },
+    {
+      "id": 15,
+      "user_id": 77,
+      "is_vip": null,
+      "date_added": "2024-07-25 14:14:03",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": null,
+      "branches": {
+        "3": "ОЛИМП Софрино"
+      },
+      "name": "Араик",
+      "surname": "Галустян",
+      "second_name": "Витальевич",
+      "fio": "Галустян А.В.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "1": "Хирурги",
+        "2": "Терапевты"
+      },
+      "photo": null,
+      "phone": "78945612300"
+    },
+    {
+      "id": 16,
+      "user_id": 78,
+      "is_vip": null,
+      "date_added": "2024-07-31 16:35:38",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": null,
+      "branches": {
+        "3": "ОЛИМП Софрино"
+      },
+      "name": "Алексей",
+      "surname": "Нифанов",
+      "second_name": "Александрович",
+      "fio": "Нифанов А.А.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "1": "Хирурги",
+        "6": "Ортопеды"
+      },
+      "photo": null,
+      "phone": "79261817771"
+    },
+    {
+      "id": 17,
+      "user_id": 79,
+      "is_vip": null,
+      "date_added": "2024-08-11 15:41:13",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": null,
+      "branches": {
+        "2": "OOO Cтоматологический центр Хотьково"
+      },
+      "name": "Алексей",
+      "surname": "Монтик",
+      "second_name": "Иванович",
+      "fio": "Монтик А.И.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "1": "Хирурги",
+        "2": "Терапевты"
+      },
+      "photo": null,
+      "phone": "79162945574"
+    },
+    {
+      "id": 18,
+      "user_id": 84,
+      "is_vip": null,
+      "date_added": "2024-09-28 10:46:45",
+      "date_delete": null,
+      "is_hidden": false,
+      "money_per_hour": null,
+      "branches": {
+        "3": "ОЛИМП Софрино"
+      },
+      "name": "Анна",
+      "surname": "Егиазарян",
+      "second_name": "Александровна",
+      "fio": "Егиазарян А.А.",
+      "user_groups": {
+        "6": "Врач"
+      },
+      "departments": {
+        "2": "Терапевты",
+        "3": "Ортодонты",
+        "9": "Детская терапия"
+      },
+      "photo": "/content/upload/web/28.09.2024/76/mvFile_8461727512117.svg",
+      "phone": "79854797782"
+    }
+  ],
+  "status": true,
+  "error": null,
+  "page": 0,
+  "total": 0,
+  "paginated": false,
+  "limit": 0,
+  "api_version": 2,
+  "version": "31.10.2024 15.1.12"
+}
