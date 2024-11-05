@@ -1,17 +1,22 @@
 package bot
 
 type UserTexts struct {
-	Welcome             string
-	Cancel              string
-	Calendar            string
-	PhoneNumberRequest  string
-	Back                string
-	Wait                string
-	ChooseDoctor        string
-	DontHasAppointments string
-	ChooseAppointments  string
-	DontHasIntervals    string
-	ChooseInterval      string
+	Welcome                  string
+	Cancel                   string
+	Calendar                 string
+	PhoneNumberRequest       string
+	Back                     string
+	Wait                     string
+	ChooseDoctor             string
+	DontHasAppointments      string
+	ChooseAppointments       string
+	DontHasIntervals         string
+	ChooseInterval           string
+	Approve                  string
+	ApproveRegister          string
+	ApproveRegisterTimeLimit string
+	ContactsAddedSuccess     string
+	ChangeName               string
 
 	InternalError string
 }
@@ -45,6 +50,18 @@ func NewUserTexts() *UserTexts {
 		DontHasIntervals: "День %s\nВрач %s\n%s\n\nК сожалению, у врача %s пока нет свободных интервалов в этот день. 😔🗓️",
 
 		ChooseInterval: "День %s\nВрач %s\n%s\n\nПожалуйста, выберите свободное время. 🕒✨",
+
+		Approve: "✅Подтвердить",
+
+		ApproveRegisterTimeLimit: "⚠️ Упс! Вы не можете записаться на уже прошедшую дату и время",
+
+		ApproveRegister: "📅 Дата и время: <b><i>%s</i></b>\n👨‍⚕️ Врач: <b><i>%s</i></b>" +
+			"\n🦷 На прием: <b><i>%s (%d мин)</i></b>\n\nВы будете записаны как: <b><i>%s %s</i></b>" +
+			"\n\n Пожалуйста, подтвердите, что все верно.",
+
+		ContactsAddedSuccess: "📞 Ваш номер телефона успешно добавлен!\nВы можете продолжить регистрацию.",
+
+		ChangeName: "Изменить имя",
 
 		Wait: "Секунду...",
 

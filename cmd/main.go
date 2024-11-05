@@ -8,6 +8,7 @@ import (
 	"main/pkg"
 	"os"
 	"strconv"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
@@ -38,10 +39,14 @@ func OpenDB() *sql.DB {
 func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.DB) {
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if botToken == "" {
-		panic("TELEGRAM_BOT_TOKEN environment variable not set")
+		logrus.Panic("TELEGRAM_BOT_TOKEN environment variable not set")
 	}
 
 	tgBot, err := tgbotapi.NewBotAPI(botToken)
+	if err != nil {
+		logrus.Panic(err)
+	}
+
 	branchID, err := strconv.ParseInt(os.Getenv("BRANCH_ID"), 10, 64)
 	if err != nil {
 		branchID = 3
@@ -52,7 +57,15 @@ func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.D
 	logrus.Printf("Authorized on account %s", tgBot.Self.UserName)
 
 	userTexts := bot.NewUserTexts()
-	telegramBotHandler := bot.NewTelegramBotHandler(tgBot, *userTexts, dentalProClient, db, branchID)
+
+	location, err := time.LoadLocation(os.Getenv("LOCATION"))
+	if err != nil {
+		logrus.Panic(err)
+	}
+
+	telegramBotHandler := bot.NewTelegramBotHandler(
+		tgBot, *userTexts, dentalProClient, db, branchID, location,
+	)
 	router := bot.NewRouter(tgBot, telegramBotHandler)
 
 	go bot.CleanupUserStates(router.ChatStatesMu, router.TgChatStates)

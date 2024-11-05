@@ -52,6 +52,7 @@ func (r *Router) StartListening() {
 			}
 			if update.CallbackQuery != nil {
 				var data CallbackData
+				chatState := r.GetOrCreateChatState(update.CallbackQuery.Message.Chat.ID)
 				callbackData := []byte(update.CallbackQuery.Data)
 				err := json.Unmarshal(callbackData, &data)
 				if err != nil {
@@ -67,7 +68,7 @@ func (r *Router) StartListening() {
 				case "appointment":
 					r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
 				case "interval":
-					r.tgBotHandler.RegisterApproveCallback(update.CallbackQuery)
+					r.tgBotHandler.RegisterApproveCallback(update.CallbackQuery, chatState)
 				case "back":
 					r.tgBotHandler.BackCallback(update.CallbackQuery)
 				default:

@@ -2,12 +2,11 @@ package bot
 
 import (
 	"database/sql"
-	"errors"
-	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 	"main/internal/crm"
 	"main/internal/database"
+	"time"
 )
 
 type TelegramBotHandler struct {
@@ -16,6 +15,7 @@ type TelegramBotHandler struct {
 	dentalProClient crm.IDentalProClient
 	db              *sql.DB
 	branchID        int64
+	location        *time.Location
 }
 
 func NewTelegramBotHandler(
@@ -24,9 +24,11 @@ func NewTelegramBotHandler(
 	dentalProClient crm.IDentalProClient,
 	db *sql.DB,
 	branchID int64,
+	location *time.Location,
 ) *TelegramBotHandler {
 	handler := &TelegramBotHandler{
 		bot: bot, userTexts: userTexts, dentalProClient: dentalProClient, db: db, branchID: branchID,
+		location: location,
 	}
 	return handler
 }
@@ -50,19 +52,6 @@ func (h *TelegramBotHandler) StartCommandHandler(message *tgbotapi.Message, chat
 	_, _ = h.Send(response, true)
 }
 
-func (h *TelegramBotHandler) NoAuthRegisterCommandHandler(message *tgbotapi.Message, chatState *TelegramChatState) {
-	ok, err := h.GetPhoneNumber(message, chatState)
-	if err != nil {
-		_ = fmt.Errorf("GetPhoneNumber error %w", err)
-		return
-	}
-	if !ok {
-		chatState.UpdateChatState(h.NoAuthRegisterCommandHandler)
-		return
-	}
-	h.RegisterCommandHandler(message, chatState)
-}
-
 func (h *TelegramBotHandler) RegisterCommandHandler(message *tgbotapi.Message, chatState *TelegramChatState) {
 	logrus.Print("/register command")
 	log := logrus.WithFields(logrus.Fields{
@@ -70,23 +59,10 @@ func (h *TelegramBotHandler) RegisterCommandHandler(message *tgbotapi.Message, c
 		"func":   "RegisterCommandHandler",
 	})
 
-	repository := database.UserRepository{DB: h.db}
-	_, err := repository.GetUserByTelegramID(message.From.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		h.RequestPhoneNumber(message)
-		chatState.UpdateChatState(h.NoAuthRegisterCommandHandler)
-		return
-	} else if err != nil {
-		log.Error(err)
-		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
-		_, _ = h.Send(response, false)
-	}
-
 	go func() {
 		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.Wait)
 		newMsg, err := h.Send(response, true)
-		if err != nil {
-			logrus.Error(err)
+		if h.checkAndLogError(err, log, message, "") {
 			return
 		}
 		h.ChangeToDoctorsMarkup(newMsg)
@@ -97,6 +73,7 @@ func (h *TelegramBotHandler) CancelCommandHandler(message *tgbotapi.Message, cha
 	logrus.Print("/cancel command")
 	chatState.UpdateChatState(nil)
 	response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.Cancel)
+	response.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 	_, _ = h.Send(response, true)
 }
 
@@ -118,9 +95,10 @@ func (h *TelegramBotHandler) GetPhoneNumber(
 		return false, nil
 	}
 
-	phoneNumber := message.Contact.PhoneNumber
 	repository := database.UserRepository{DB: h.db}
-	err := repository.UpsertPhoneByTelegramID(message.From.ID, phoneNumber)
+	err := repository.UpsertContactByTelegramID(
+		message.From.ID, message.Contact.FirstName, message.Contact.LastName, message.Contact.PhoneNumber,
+	)
 	if err != nil {
 		logrus.Error(err)
 		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)

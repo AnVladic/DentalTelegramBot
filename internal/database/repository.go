@@ -59,15 +59,18 @@ func (r *UserRepository) GetOrCreateByTelegramID(user User) (*User, bool, error)
 	return oldUser, false, nil
 }
 
-func (r *UserRepository) UpsertPhoneByTelegramID(tgUserID int64, phone string) error {
+func (r *UserRepository) UpsertContactByTelegramID(tgUserID int64, firstName, lastName, phone string) error {
 	query := `
-        INSERT INTO "User" (tg_user_id, phone)
-        VALUES ($1, $2)
+        INSERT INTO "User" (tg_user_id, phone, name, lastname)
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT (tg_user_id)
-        DO UPDATE SET phone = EXCLUDED.phone;
+        DO UPDATE SET 
+            phone = EXCLUDED.phone,
+            name = EXCLUDED.name,
+            lastname = EXCLUDED.lastname;
     `
 
-	_, err := r.DB.Exec(query, tgUserID, phone)
+	_, err := r.DB.Exec(query, tgUserID, phone, firstName, lastName)
 	return err
 }
 
