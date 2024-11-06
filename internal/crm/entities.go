@@ -86,3 +86,9 @@ type DayInterval struct {
 	Date  DateYMD   `json:"date"`
 	Slots []DaySlot `json:"slots"`
 }
+
+type EditPatientResponse struct {
+	ClientID *int64 `json:"clientID"`
+	Status   bool   `json:"status"`
+	Message  string `json:"message"`
+}

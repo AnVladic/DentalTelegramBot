@@ -7,9 +7,7 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
-	"main/internal/crm"
 	"main/internal/database"
-	"net/http"
 	"time"
 )
 
@@ -281,12 +279,16 @@ func (h *TelegramBotHandler) BackCallback(query *tgbotapi.CallbackQuery) {
 
 func (h *TelegramBotHandler) UpdateNoAuthRegisterCommandHandler(query *tgbotapi.CallbackQuery, chatState *TelegramChatState) {
 	chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
-		h.NoAuthRegisterCommandHandler(query, message, chatState)
+		h.NoAuthApproveRegister(query, message, chatState)
 	})
 }
 
-func (h *TelegramBotHandler) NoAuthRegisterCommandHandler(
+func (h *TelegramBotHandler) NoAuthApproveRegister(
 	query *tgbotapi.CallbackQuery, message *tgbotapi.Message, chatState *TelegramChatState) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot.callback",
+		"func":   "NoAuthApproveRegister",
+	})
 	ok, err := h.GetPhoneNumber(message, chatState)
 	if err != nil {
 		_ = fmt.Errorf("GetPhoneNumber error %w", err)
@@ -297,21 +299,68 @@ func (h *TelegramBotHandler) NoAuthRegisterCommandHandler(
 		return
 	}
 	msg := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.ContactsAddedSuccess)
-	msg.ReplyToMessageID = query.Message.MessageID
+	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 	_, _ = h.Send(msg, true)
-	h.RegisterApproveCallback(query, chatState)
+
+	newMessage, _ := h.Send(tgbotapi.NewMessage(message.Chat.ID, h.userTexts.Wait), true)
+	repository := database.UserRepository{DB: h.db}
+	user, err := repository.GetUserByTelegramID(query.From.ID)
+	if err != nil {
+		return
+	}
+
+	register, err := h.getRegister(*user, query.Message, log)
+	if err != nil {
+		return
+	}
+	register.MessageID = newMessage.MessageID
+
+	registerRepo := database.RegisterRepository{DB: h.db}
+	err = registerRepo.Create(register)
+	if h.checkAndLogError(err, log, message, "") {
+		return
+	}
+	h.createApproveMessage(register, user, newMessage, log)
 }
 
 func (h *TelegramBotHandler) RegisterApproveCallback(
 	query *tgbotapi.CallbackQuery, chatState *TelegramChatState) {
+	var register *database.Register
 	log := logrus.WithFields(logrus.Fields{
 		"module": "callback",
 		"func":   "RegisterApproveCallback",
 	})
 
+	parseData, err := h.parseTelegramChoiceIntervalCallback(query, log)
+	if err != nil {
+		return
+	}
+
 	repository := database.UserRepository{DB: h.db}
 	user, err := repository.GetUserByTelegramID(query.From.ID)
-	if errors.Is(err, sql.ErrNoRows) || user.Phone == nil || *user.Phone == "" {
+
+	if user != nil {
+		startTime, err := time.Parse("15:4", parseData.StartTime)
+		if h.checkAndLogError(err, log, query.Message, "") {
+			return
+		}
+
+		register, err = h.getRegister(*user, query.Message, log)
+		if err != nil {
+			return
+		}
+		datetime := time.Date(
+			register.Datetime.Year(), register.Datetime.Month(), register.Datetime.Day(),
+			startTime.Hour(), startTime.Minute(), 0, 0, h.location,
+		)
+		register.Datetime = &datetime
+		err = h.updateRegisterDatetime(*register, query.Message, log)
+		if err != nil {
+			return
+		}
+	}
+
+	if errors.Is(err, sql.ErrNoRows) || user == nil || user.Phone == nil || *user.Phone == "" {
 		h.RequestPhoneNumber(query.Message)
 		h.UpdateNoAuthRegisterCommandHandler(query, chatState)
 		return
@@ -321,68 +370,7 @@ func (h *TelegramBotHandler) RegisterApproveCallback(
 		_, _ = h.Send(response, false)
 	}
 
-	dentalProUser, err := h.getCRMPatient(*user.Phone, query.Message, log)
-	var reqErr *crm.RequestError
-	if errors.As(err, &reqErr) && reqErr.Code != http.StatusNotFound {
-		return
-	}
-
-	selfUser := SelfUser{user, dentalProUser}
-
-	parseData, err := h.parseTelegramChoiceIntervalCallback(query, log)
-	if err != nil {
-		return
-	}
-
-	register, err := h.getRegister(*user, query.Message, log)
-	if err != nil {
-		return
-	}
-
-	appointment, err := h.getAppointment(
-		user, register.DoctorID, register.AppointmentID, "", log, query.Message)
-	if err != nil {
-		return
-	}
-
-	doctor, err := h.getDoctor(register.DoctorID, query.Message, log)
-	if err != nil {
-		return
-	}
-
-	startTime, err := time.Parse("15:4", parseData.StartTime)
-	if h.checkAndLogError(err, log, query.Message, "") {
-		return
-	}
-
-	recordDatetime := time.Date(
-		register.Datetime.Year(), register.Datetime.Month(), register.Datetime.Day(),
-		startTime.Hour(), startTime.Minute(), 0, 0, h.location,
-	)
-
-	if h.localTimeCutoff().After(recordDatetime) {
-		backKeyboard := tgbotapi.InlineKeyboardMarkup{
-			InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{{h.getBackButton("calendar")}},
-		}
-		edit := tgbotapi.NewEditMessageTextAndMarkup(
-			query.Message.Chat.ID, query.Message.MessageID, h.userTexts.ApproveRegisterTimeLimit, backKeyboard,
-		)
-		_, _ = h.Edit(edit, true)
-	} else {
-		text := fmt.Sprintf(
-			h.userTexts.ApproveRegister,
-			recordDatetime.Format("2006-01-02 15:04"),
-			doctor.FIO,
-			appointment.Name,
-			appointment.Time,
-			selfUser.GetSelfLastName(),
-			selfUser.GetSelfFirstName(),
-		)
-		edit := tgbotapi.NewEditMessageTextAndMarkup(
-			query.Message.Chat.ID, query.Message.MessageID, text, h.createApproveRegisterKeyboard())
-		edit.ParseMode = "HTML"
-		_, _ = h.Edit(edit, true)
-	}
+	h.createApproveMessage(register, user, query.Message, log)
 }
 
 func (h *TelegramBotHandler) RegisterCallback(query *tgbotapi.CallbackQuery) {
@@ -428,4 +416,39 @@ func (h *TelegramBotHandler) RegisterCallback(query *tgbotapi.CallbackQuery) {
 			// если проверку прошла
 		}
 	}
+}
+
+func (h *TelegramBotHandler) ChangeNameCallback(
+	query *tgbotapi.CallbackQuery, chatState *TelegramChatState) {
+
+	log := logrus.WithFields(logrus.Fields{
+		"module": "callback",
+		"func":   "RegisterCallback",
+	})
+
+	response := tgbotapi.NewMessage(query.Message.Chat.ID, h.userTexts.ChangeFirstNameRequest)
+	_, _ = h.Send(response, true)
+
+	handler := HandlerMethod(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+		newMessage, _ := h.Send(tgbotapi.NewMessage(message.Chat.ID, h.userTexts.Wait), true)
+		repository := database.UserRepository{DB: h.db}
+		user, err := repository.GetUserByTelegramID(query.From.ID)
+		if err != nil {
+			return
+		}
+
+		register, err := h.getRegister(*user, query.Message, log)
+		if err != nil {
+			return
+		}
+		register.MessageID = newMessage.MessageID
+
+		registerRepo := database.RegisterRepository{DB: h.db}
+		err = registerRepo.Create(register)
+		h.createApproveMessage(register, user, newMessage, log)
+	})
+
+	chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+		h.ChangeFirstNameHandler(message, chatState, &handler)
+	})
 }

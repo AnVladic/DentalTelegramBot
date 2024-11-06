@@ -98,6 +98,10 @@ func GetTestAppointments() map[int64]map[int64]Appointment {
 	}
 }
 
+func GetTestPatients() map[int64]Patient {
+	return map[int64]Patient{}
+}
+
 func NewDentalProClientTest(token, secretKey string) *DentalProClientTest {
 	return &DentalProClientTest{
 		Token:            token,
@@ -106,6 +110,7 @@ func NewDentalProClientTest(token, secretKey string) *DentalProClientTest {
 		Schedule:         GetTestSchedule(),
 		Appointments:     GetTestAppointments(),
 		AllFreeIntervals: GetTestFreeIntervals(),
+		Patients:         GetTestPatients(),
 		mu:               &sync.Mutex{},
 	}
 }
@@ -228,4 +233,24 @@ func (c *DentalProClientTest) FreeIntervals(
 		}
 	}
 	return result, nil
+}
+
+func (c *DentalProClientTest) EditPatient(patient Patient) (EditPatientResponse, error) {
+	// Редактирование базовой информации о пациенте
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=records/editClient&target=modal
+	editPatient, ok := c.Patients[patient.ExternalID]
+	if !ok {
+		msg := fmt.Sprintf("patient with externalID %d not found", patient.ExternalID)
+		return EditPatientResponse{Status: false, Message: msg}, &RequestError{
+			http.StatusNotFound,
+			msg,
+		}
+	}
+	editPatient.Phone = patient.Phone
+	editPatient.Name = patient.Name
+	editPatient.Surname = patient.Surname
+	return EditPatientResponse{
+		ClientID: &editPatient.ExternalID,
+		Status:   true,
+	}, nil
 }

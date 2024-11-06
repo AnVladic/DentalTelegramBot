@@ -2,6 +2,8 @@ package bot
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 	"main/internal/crm"
@@ -17,6 +19,8 @@ type TelegramBotHandler struct {
 	branchID        int64
 	location        *time.Location
 }
+
+type HandlerMethod func(message *tgbotapi.Message, chatState *TelegramChatState)
 
 func NewTelegramBotHandler(
 	bot *tgbotapi.BotAPI,
@@ -106,4 +110,106 @@ func (h *TelegramBotHandler) GetPhoneNumber(
 		return false, err
 	}
 	return true, nil
+}
+
+func (h *TelegramBotHandler) NoAuthChangeNameHandler(
+	message *tgbotapi.Message, chatState *TelegramChatState, onSuccess *HandlerMethod) {
+	ok, err := h.GetPhoneNumber(message, chatState)
+	if err != nil {
+		_ = fmt.Errorf("GetPhoneNumber error %w", err)
+		return
+	}
+	if !ok {
+		chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+			h.NoAuthChangeNameHandler(message, chatState, onSuccess)
+		})
+		return
+	}
+	msg := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.ContactsAddedSuccess)
+	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+	chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+		h.ChangeNameHandler(message, chatState, onSuccess)
+	})
+}
+
+func (h *TelegramBotHandler) ChangeNameHandler(
+	message *tgbotapi.Message, chatState *TelegramChatState, onSuccess *HandlerMethod) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot.handler",
+		"func":   "ChangeNameHandler",
+	})
+
+	repository := database.UserRepository{DB: h.db}
+	user, err := repository.GetUserByTelegramID(message.From.ID)
+	if errors.Is(err, sql.ErrNoRows) || user.Phone == nil || *user.Phone == "" {
+		h.RequestPhoneNumber(message)
+		chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+			h.NoAuthChangeNameHandler(message, chatState, onSuccess)
+		})
+		return
+	} else if h.checkAndLogError(err, log, message, "") {
+		return
+	}
+
+	response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.ChangeFirstNameRequest)
+	_, _ = h.Send(response, true)
+
+	chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+		h.ChangeFirstNameHandler(message, chatState, onSuccess)
+	})
+}
+
+func (h *TelegramBotHandler) ChangeLastNameHandler(
+	message *tgbotapi.Message, chatState *TelegramChatState, onSuccess *HandlerMethod) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot.handler",
+		"func":   "ChangeLastNameHandler",
+	})
+
+	repository := database.UserRepository{DB: h.db}
+	err := repository.UpdateLastName(message.From.ID, message.Text)
+	if h.checkAndLogError(err, log, message, "") {
+		return
+	}
+	user, err := repository.GetUserByTelegramID(message.From.ID)
+	if h.checkAndLogError(err, log, message, "") {
+		return
+	}
+
+	patient, err := h.upsertCRMPatient(crm.Patient{
+		Phone: *user.Phone, Name: *user.Name, Surname: *user.Lastname}, message, log)
+	if err != nil {
+		return
+	}
+
+	text := fmt.Sprintf(
+		h.userTexts.ChangeNameSucceed, patient.Surname, patient.Name)
+	response := tgbotapi.NewMessage(message.Chat.ID, text)
+	response.ParseMode = "HTML"
+	_, _ = h.Send(response, true)
+
+	if onSuccess != nil {
+		(*onSuccess)(message, chatState)
+	}
+}
+
+func (h *TelegramBotHandler) ChangeFirstNameHandler(
+	message *tgbotapi.Message, chatState *TelegramChatState, onSuccess *HandlerMethod) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot.handler",
+		"func":   "ChangeFirstNameHandler",
+	})
+
+	repository := database.UserRepository{DB: h.db}
+	err := repository.UpdateFirstName(message.From.ID, message.Text)
+	if h.checkAndLogError(err, log, message, "") {
+		return
+	}
+
+	response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.ChangeLastNameRequest)
+	_, _ = h.Send(response, true)
+
+	chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+		h.ChangeLastNameHandler(message, chatState, onSuccess)
+	})
 }

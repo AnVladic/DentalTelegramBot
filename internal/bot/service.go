@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const HTML = "HTML"
+
 func (h *TelegramBotHandler) Send(
 	msgConfig tgbotapi.MessageConfig, errNotifyUser bool) (*tgbotapi.Message, error) {
 	msg, err := h.bot.Send(msgConfig)
@@ -94,6 +96,7 @@ func (h *TelegramBotHandler) RequestContactKeyboard() tgbotapi.ReplyKeyboardMark
 func (h *TelegramBotHandler) RequestPhoneNumber(message *tgbotapi.Message) {
 	msg := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.PhoneNumberRequest)
 	msg.ReplyMarkup = h.RequestContactKeyboard()
+	msg.ParseMode = HTML
 	_, _ = h.Send(msg, true)
 }
 
@@ -483,6 +486,37 @@ func (h *TelegramBotHandler) getCRMPatient(
 	return &patient, nil
 }
 
+func (h *TelegramBotHandler) upsertCRMPatient(
+	patient crm.Patient, message *tgbotapi.Message, log *logrus.Entry) (*crm.Patient, error) {
+	dentalProUser, err := h.getCRMPatient(patient.Phone, message, log)
+	var reqErr *crm.RequestError
+	if errors.As(err, &reqErr) {
+		if reqErr.Code == http.StatusNotFound {
+			newPatient, err := h.dentalProClient.CreatePatient(
+				patient.Name, patient.Surname, patient.Phone,
+			)
+			if h.checkAndLogError(err, log, message, "CreatePatient %s", patient.Phone) {
+				return nil, err
+			}
+			return &newPatient, nil
+		}
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+	patient.ExternalID = dentalProUser.ExternalID
+	status, err := h.dentalProClient.EditPatient(patient)
+	if err != nil || !status.Status {
+		if err == nil {
+			err = fmt.Errorf("EditPatient error %s", status.Message)
+		}
+		h.checkAndLogError(err, log, message, "EditPatient %s", patient.Phone)
+		return nil, err
+	}
+	return &patient, err
+}
+
 func (h *TelegramBotHandler) getDoctor(
 	doctorID *int64, message *tgbotapi.Message, log *logrus.Entry) (*database.Doctor, error) {
 	if doctorID == nil {
@@ -701,4 +735,54 @@ func (h *TelegramBotHandler) createApproveRegisterKeyboard() tgbotapi.InlineKeyb
 			h.getBackButton("calendar"),
 		},
 	}}
+}
+
+func (h *TelegramBotHandler) createApproveMessage(
+	register *database.Register,
+	user *database.User,
+	message *tgbotapi.Message,
+	log *logrus.Entry,
+) {
+	dentalProUser, err := h.getCRMPatient(*user.Phone, message, log)
+	var reqErr *crm.RequestError
+	if errors.As(err, &reqErr) && reqErr.Code != http.StatusNotFound {
+		return
+	}
+
+	selfUser := SelfUser{user, dentalProUser}
+
+	appointment, err := h.getAppointment(
+		user, register.DoctorID, register.AppointmentID, "", log, message)
+	if err != nil {
+		return
+	}
+
+	doctor, err := h.getDoctor(register.DoctorID, message, log)
+	if err != nil {
+		return
+	}
+
+	if h.localTimeCutoff().After(*register.Datetime) {
+		backKeyboard := tgbotapi.InlineKeyboardMarkup{
+			InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{{h.getBackButton("calendar")}},
+		}
+		edit := tgbotapi.NewEditMessageTextAndMarkup(
+			message.Chat.ID, message.MessageID, h.userTexts.ApproveRegisterTimeLimit, backKeyboard,
+		)
+		_, _ = h.Edit(edit, true)
+	} else {
+		text := fmt.Sprintf(
+			h.userTexts.ApproveRegister,
+			register.Datetime.Format("2006-01-02 15:04"),
+			doctor.FIO,
+			appointment.Name,
+			appointment.Time,
+			selfUser.GetSelfLastName(),
+			selfUser.GetSelfFirstName(),
+		)
+		edit := tgbotapi.NewEditMessageTextAndMarkup(
+			message.Chat.ID, message.MessageID, text, h.createApproveRegisterKeyboard())
+		edit.ParseMode = HTML
+		_, _ = h.Edit(edit, true)
+	}
 }

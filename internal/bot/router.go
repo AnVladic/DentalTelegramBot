@@ -69,6 +69,8 @@ func (r *Router) StartListening() {
 					r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
 				case "interval":
 					r.tgBotHandler.RegisterApproveCallback(update.CallbackQuery, chatState)
+				case "change_name":
+					r.tgBotHandler.ChangeNameCallback(update.CallbackQuery, chatState)
 				case "back":
 					r.tgBotHandler.BackCallback(update.CallbackQuery)
 				default:
@@ -87,6 +89,8 @@ func (r *Router) handleMessage(msg *tgbotapi.Message) {
 		r.tgBotHandler.StartCommandHandler(msg, chatState)
 	case "register":
 		r.tgBotHandler.RegisterCommandHandler(msg, chatState)
+	case "change_name":
+		r.tgBotHandler.ChangeNameHandler(msg, chatState, nil)
 	case "cancel":
 		r.tgBotHandler.CancelCommandHandler(msg, chatState)
 	default:

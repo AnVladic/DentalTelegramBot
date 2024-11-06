@@ -17,7 +17,7 @@ CREATE TABLE "Doctor" (
 
 CREATE TABLE "Register" (
     "id" SERIAL PRIMARY KEY,
-    "user_id" BIGINT NOT NULL REFERENCES "User"("id"),
+    "user_id" BIGINT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
     "message_id" BIGINT NOT NULL,
     "chat_id" BIGINT NOT NULL,
     "doctor_id" BIGINT REFERENCES "Doctor"("id"),
@@ -26,4 +26,3 @@ CREATE TABLE "Register" (
 
     UNIQUE (user_id, message_id, chat_id)
 );
-

@@ -74,6 +74,26 @@ func (r *UserRepository) UpsertContactByTelegramID(tgUserID int64, firstName, la
 	return err
 }
 
+func (r *UserRepository) UpdateLastName(tgUserID int64, lastName string) error {
+	query := `
+        UPDATE "User"
+		SET lastname = ($1)
+		WHERE tg_user_id = ($2);
+    `
+	_, err := r.DB.Exec(query, lastName, tgUserID)
+	return err
+}
+
+func (r *UserRepository) UpdateFirstName(tgUserID int64, firstName string) error {
+	query := `
+        UPDATE "User"
+		SET name = ($1)
+		WHERE tg_user_id = ($2);
+    `
+	_, err := r.DB.Exec(query, firstName, tgUserID)
+	return err
+}
+
 func (r *UserRepository) UpdateDentalProIDByTelegramID(tgUserID int64, dentalProID int64) error {
 	query := `
         UPDATE "User"
@@ -109,7 +129,7 @@ func (r *RegisterRepository) Get(userID int64, chatID int64, messageID int) (*Re
 func (r *RegisterRepository) Create(register *Register) error {
 	query := `
         INSERT INTO "Register" (user_id, message_id, chat_id, doctor_id, appointment_id, datetime)
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id;
     `
 	err := r.DB.QueryRow(query, register.UserID, register.MessageID, register.ChatID,

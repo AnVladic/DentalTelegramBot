@@ -10,6 +10,8 @@ type IDentalProClient interface {
 		userID int64, doctorIDs []int64, isPlanned bool) (map[int64]map[int64]Appointment, error)
 
 	CreatePatient(name, surname string, phone string) (Patient, error)
+	EditPatient(patient Patient) (EditPatientResponse, error)
+
 	PatientByPhone(phone string) (Patient, error)
 	FreeIntervals(
 		startDate, endDate time.Time,
@@ -69,6 +71,12 @@ func (c *DentalProClient) FreeIntervals(
 	// Доступные к записи интервалы
 	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=twin/freetimeintervals&target=modal
 	return []DayInterval{}, nil
+}
+
+func (c *DentalProClient) EditPatient(patient Patient) (EditPatientResponse, error) {
+	// Редактирование базовой информации о пациенте
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=records/editClient&target=modal
+	return EditPatientResponse{}, nil
 }
 
 func GetDoctorByID(doctors []Doctor, doctorID int64) *Doctor {
