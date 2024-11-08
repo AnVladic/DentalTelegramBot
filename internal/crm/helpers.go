@@ -81,3 +81,10 @@ func parseJSONFile(target interface{}, filePath string) {
 		panic(fmt.Errorf("error decoding JSON: %w", err))
 	}
 }
+
+func mergeToDatetime(date time.Time, time_ time.Time) time.Time {
+	return time.Date(
+		date.Year(), date.Month(), date.Day(),
+		time_.Hour(), time_.Minute(), time_.Second(), 0, time_.Location(),
+	)
+}

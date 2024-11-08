@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"main/internal/crm"
 	"main/internal/database"
+	"strings"
 	"time"
 )
 
@@ -46,11 +47,12 @@ func (h *TelegramBotHandler) StartCommandHandler(message *tgbotapi.Message, chat
 		TgUserID: message.From.ID,
 	}
 	repository := database.UserRepository{DB: h.db}
-	err := repository.CreateUser(&user)
+	_, _, err := repository.GetOrCreateByTelegramID(user)
 	if err != nil {
 		logrus.Error(err)
 		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.InternalError)
 		_, _ = h.Send(response, false)
+		return
 	}
 
 	_, _ = h.Send(response, true)
@@ -212,4 +214,67 @@ func (h *TelegramBotHandler) ChangeFirstNameHandler(
 	chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
 		h.ChangeLastNameHandler(message, chatState, onSuccess)
 	})
+}
+
+func (h *TelegramBotHandler) NoAuthShowRecordsListHandler(
+	message *tgbotapi.Message, chatState *TelegramChatState) {
+	ok, err := h.GetPhoneNumber(message, chatState)
+	if err != nil {
+		_ = fmt.Errorf("GetPhoneNumber error %w", err)
+		return
+	}
+	if !ok {
+		chatState.UpdateChatState(h.NoAuthShowRecordsListHandler)
+		return
+	}
+	h.ShowRecordsListHandler(message, chatState)
+}
+
+func (h *TelegramBotHandler) ShowRecordsListHandler(
+	message *tgbotapi.Message, chatState *TelegramChatState) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot.handler",
+		"func":   "ShowRecordsList",
+	})
+
+	repository := database.UserRepository{DB: h.db}
+	user, err := repository.GetUserByTelegramID(message.From.ID)
+	if errors.Is(err, sql.ErrNoRows) || user.Phone == nil || *user.Phone == "" {
+		h.RequestPhoneNumber(message)
+		chatState.UpdateChatState(h.NoAuthShowRecordsListHandler)
+		return
+	} else if h.checkAndLogError(err, log, message, "") {
+		return
+	}
+
+	patient, _, err := h.getOrCreatePatient(*user.Name, *user.Lastname, *user.Phone, message, log)
+	if err != nil {
+		return
+	}
+
+	records, err := h.getCRMRecordsList(patient.ExternalID, message, log)
+	if err != nil {
+		return
+	}
+
+	if len(records) == 0 {
+		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.HasNoRecords)
+		_, _ = h.Send(response, true)
+		return
+	}
+
+	rectorsTexts := make([]string, len(records))
+	for i, record := range records {
+		rectorsTexts[i] = fmt.Sprintf(h.userTexts.RecordItem,
+			time.Time(record.DateStart).Format("2006-01-02 15:04:05"),
+			record.DoctorName,
+			record.DoctorGroup,
+			record.Name,
+			record.Duration,
+		)
+	}
+	text := h.userTexts.RecordList + strings.Join(rectorsTexts, "\n\n")
+	response := tgbotapi.NewMessage(message.Chat.ID, text)
+	response.ParseMode = "HTML"
+	_, _ = h.Send(response, true)
 }

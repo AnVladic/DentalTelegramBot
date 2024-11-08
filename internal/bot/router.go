@@ -71,6 +71,8 @@ func (r *Router) StartListening() {
 					r.tgBotHandler.RegisterApproveCallback(update.CallbackQuery, chatState)
 				case "change_name":
 					r.tgBotHandler.ChangeNameCallback(update.CallbackQuery, chatState)
+				case "approve":
+					r.tgBotHandler.RegisterCallback(update.CallbackQuery)
 				case "back":
 					r.tgBotHandler.BackCallback(update.CallbackQuery)
 				default:
@@ -91,6 +93,8 @@ func (r *Router) handleMessage(msg *tgbotapi.Message) {
 		r.tgBotHandler.RegisterCommandHandler(msg, chatState)
 	case "change_name":
 		r.tgBotHandler.ChangeNameHandler(msg, chatState, nil)
+	case "myrecords":
+		r.tgBotHandler.ShowRecordsListHandler(msg, chatState)
 	case "cancel":
 		r.tgBotHandler.CancelCommandHandler(msg, chatState)
 	default:

@@ -2,6 +2,7 @@ package crm
 
 import (
 	"fmt"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -14,10 +15,10 @@ type DentalProClientTest struct {
 	mu *sync.Mutex
 
 	Doctors          []Doctor
-	Schedule         map[int64][]WorkSchedule
 	Appointments     map[int64]map[int64]Appointment
 	Patients         map[int64]Patient
 	AllFreeIntervals []DayInterval
+	Records          map[int64][]Record
 }
 
 type RequestError struct {
@@ -45,23 +46,6 @@ func GetTestDoctors() []Doctor {
 	}{}
 	parseJSONFile(&response, "internal/crm/test_data/doctor_list.json")
 	return response.Data
-}
-
-func GetTestSchedule() map[int64][]WorkSchedule {
-	layoutDate := "2006-01-02"
-	layoutTime := "15:04"
-	return map[int64][]WorkSchedule{
-		2: {
-			{TimeStart: parseTime("10:20", layoutTime), TimeEnd: parseTime("19:00", layoutTime), Date: parseDate("2024-11-01", layoutDate), IsWork: true},
-			{TimeStart: parseTime("15:00", layoutTime), TimeEnd: parseTime("19:00", layoutTime), Date: parseDate("2024-11-02", layoutDate), IsWork: true},
-			{TimeStart: nil, TimeEnd: nil, Date: parseDate("2024-11-03", layoutDate), IsWork: false},
-			{TimeStart: parseTime("11:10", layoutTime), TimeEnd: parseTime("19:00", layoutTime), Date: parseDate("2024-11-04", layoutDate), IsWork: true},
-			{TimeStart: parseTime("10:00", layoutTime), TimeEnd: parseTime("16:00", layoutTime), Date: parseDate("2024-11-05", layoutDate), IsWork: true},
-			{TimeStart: nil, TimeEnd: nil, Date: parseDate("2024-11-06", layoutDate), IsWork: false},
-			{TimeStart: nil, TimeEnd: nil, Date: parseDate("2024-11-07", layoutDate), IsWork: false},
-			{TimeStart: parseTime("11:10", layoutTime), TimeEnd: parseTime("19:00", layoutTime), Date: parseDate("2024-11-08", layoutDate), IsWork: true},
-		},
-	}
 }
 
 func GetTestAppointments() map[int64]map[int64]Appointment {
@@ -107,10 +91,10 @@ func NewDentalProClientTest(token, secretKey string) *DentalProClientTest {
 		Token:            token,
 		SecretKey:        secretKey,
 		Doctors:          GetTestDoctors(),
-		Schedule:         GetTestSchedule(),
 		Appointments:     GetTestAppointments(),
 		AllFreeIntervals: GetTestFreeIntervals(),
 		Patients:         GetTestPatients(),
+		Records:          map[int64][]Record{},
 		mu:               &sync.Mutex{},
 	}
 }
@@ -253,4 +237,59 @@ func (c *DentalProClientTest) EditPatient(patient Patient) (EditPatientResponse,
 		ClientID: &editPatient.ExternalID,
 		Status:   true,
 	}, nil
+}
+
+func (c *DentalProClientTest) RecordCreate(
+	date, timeStart, timeEnd time.Time, doctorID, clientID, appointmentID int64, isPlanned bool,
+) (*Record, error) {
+	// Запись пациента в расписание по автоприему/по ID medical_receptions
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=records/create&target=modal
+	records, ok := c.Records[clientID]
+	if !ok {
+		records = make([]Record, 0)
+	}
+
+	record := Record{
+		ID:        rand.Int63(),
+		TimeBegin: DateTimeYMDHMS(timeStart),
+		TimeEnd:   DateTimeYMDHMS(timeEnd),
+		Date:      DateYMD(date),
+		ClientID:  clientID,
+		DoctorID:  doctorID,
+	}
+
+	c.Records[clientID] = append(records, record)
+
+	return &record, nil
+}
+
+func (c *DentalProClientTest) PatientRecords(clientID int64) ([]ShortRecord, error) {
+	// Записи пациента по ID пациента
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=i/client/records&target=modal
+	records, ok := c.Records[clientID]
+	if !ok {
+		records = make([]Record, 0)
+	}
+	shortRecords := make([]ShortRecord, len(records))
+
+	for i, record := range records {
+		startDatetime := mergeToDatetime(time.Time(record.Date), time.Time(record.TimeBegin))
+		endDatetime := mergeToDatetime(time.Time(record.Date), time.Time(record.TimeBegin))
+		doctor := c.Doctors[record.DoctorID]
+		shortRecords[i] = ShortRecord{
+			ID:                 record.ID,
+			DateStart:          DateTimeYMDHMS(startDatetime),
+			DateStartTimestamp: startDatetime.Unix(),
+			DateEnd:            DateTimeYMDHMS(endDatetime),
+			DateEndTimestamp:   endDatetime.Unix(),
+			Duration:           int((endDatetime.Unix() - startDatetime.Unix()) / 60),
+			Name:               "Тестовая запись.",
+			DoctorID:           record.DoctorID,
+			DoctorName:         doctor.FIO,
+			DoctorGroup:        "Тестировщики",
+			BranchID:           3,
+			Total:              3000,
+		}
+	}
+	return shortRecords, nil
 }

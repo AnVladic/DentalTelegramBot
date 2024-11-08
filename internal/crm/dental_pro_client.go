@@ -17,22 +17,23 @@ type IDentalProClient interface {
 		startDate, endDate time.Time,
 		departmentID, doctorID, branchID int64, duration int,
 	) ([]DayInterval, error)
+	RecordCreate(
+		date, timeStart, timeEnd time.Time, doctorID, clientID, appointmentID int64, isPlanned bool,
+	) (*Record, error)
+	PatientRecords(clientID int64) ([]ShortRecord, error)
 }
 
 type DentalProClient struct {
 	Token     string
 	SecretKey string
+	baseURL   string
 }
 
 func NewDentalProClient(token string, secretKey string, test bool) IDentalProClient {
 	if test {
 		return NewDentalProClientTest(token, secretKey)
 	}
-	return &DentalProClient{Token: token, SecretKey: secretKey}
-}
-
-func (c *DentalProClient) baseURL() string {
-	return "https://olimp.crm3.dental-pro.online"
+	return &DentalProClient{Token: token, SecretKey: secretKey, baseURL: "https://api.dentaltelegram.com"}
 }
 
 func (c *DentalProClient) ConvertDateToStr(date time.Time) string {
@@ -77,6 +78,21 @@ func (c *DentalProClient) EditPatient(patient Patient) (EditPatientResponse, err
 	// Редактирование базовой информации о пациенте
 	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=records/editClient&target=modal
 	return EditPatientResponse{}, nil
+}
+
+func (c *DentalProClient) RecordCreate(
+	data, timeStart, timeEnd time.Time, doctorID, clientID, appointmentID int64, isPlanned bool,
+) (*Record, error) {
+	// Запись пациента в расписание по автоприему/по ID medical_receptions
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=records/create&target=modal
+	return nil, nil
+}
+
+func (c *DentalProClient) PatientRecords(clientID int64) ([]ShortRecord, error) {
+	// Записи пациента по ID пациента
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=i/client/records&target=modal
+	// Duration возвращается в секундах, нужно конвертировать в минуты
+	return nil, nil
 }
 
 func GetDoctorByID(doctors []Doctor, doctorID int64) *Doctor {

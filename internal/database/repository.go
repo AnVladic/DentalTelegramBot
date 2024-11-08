@@ -24,7 +24,8 @@ func (r *UserRepository) CreateUser(user *User) error {
         VALUES ($1, $2, $3, $4)
         RETURNING id;
     `
-	err := r.DB.QueryRow(query, user.TgUserID, user.Name, user.Lastname, user.Phone).Scan(&user.ID)
+	err := r.DB.QueryRow(
+		query, user.TgUserID, user.Name, user.Lastname, normalizePhone(user.Phone)).Scan(&user.ID)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func (r *UserRepository) UpsertContactByTelegramID(tgUserID int64, firstName, la
             lastname = EXCLUDED.lastname;
     `
 
-	_, err := r.DB.Exec(query, tgUserID, phone, firstName, lastName)
+	_, err := r.DB.Exec(query, tgUserID, normalizePhone(&phone), firstName, lastName)
 	return err
 }
 

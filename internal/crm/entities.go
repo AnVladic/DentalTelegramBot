@@ -92,3 +92,44 @@ type EditPatientResponse struct {
 	Status   bool   `json:"status"`
 	Message  string `json:"message"`
 }
+
+type Record struct {
+	ID                  int64          `json:"id"`
+	Reason              string         `json:"reason"`
+	TimeBegin           DateTimeYMDHMS `json:"timeBegin"`
+	TimeEnd             DateTimeYMDHMS `json:"timeEnd"`
+	ChairID             int64          `json:"chairId"`
+	ClientID            int64          `json:"clientId"`
+	Color               string         `json:"color"`
+	IsVIP               bool           `json:"isVip"`
+	IsChild             bool           `json:"isChild"`
+	IsPolis             bool           `json:"isPolis"`
+	DoctorID            int64          `json:"doctorId"`
+	Date                DateYMD        `json:"date"`
+	ClientName          string         `json:"clientName"`
+	ClientFromWhere     int            `json:"clientFromWhere"`
+	ClientFromWhereName string         `json:"clientFromWhereName"`
+	ClientPhone         string         `json:"clientPhone"`
+	ClientExternalID    string         `json:"clientExternalId"`
+	ClientGroups        map[int]string `json:"clientGroups"`
+	IsPrimary           string         `json:"isPrimary"`
+	SendRecordSms       bool           `json:"sendRecordSms"`
+	Status              interface{}    `json:"status"`
+}
+
+type ShortRecord struct {
+	ID                 int64          `json:"id"`
+	DateStart          DateTimeYMDHMS `json:"dateStart"`
+	DateStartTimestamp int64          `json:"dateStartTimestamp"`
+	DateEnd            DateTimeYMDHMS `json:"dateEnd"`
+	DateEndTimestamp   int64          `json:"dateEndTimestamp"`
+	Duration           int            `json:"duration"`
+	Name               string         `json:"name"`
+	Teeth              string         `json:"teeth"`
+	ToothShort         string         `json:"toothShort"`
+	DoctorID           int64          `json:"doctorId"`
+	DoctorName         string         `json:"doctorName"`
+	DoctorGroup        string         `json:"doctorGroup"`
+	BranchID           int            `json:"branchId"`
+	Total              int            `json:"total"`
+}

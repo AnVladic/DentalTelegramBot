@@ -379,22 +379,22 @@ func (h *TelegramBotHandler) RegisterCallback(query *tgbotapi.CallbackQuery) {
 		"func":   "RegisterCallback",
 	})
 
-	parseData, err := h.parseTelegramChoiceIntervalCallback(query, log)
-	if err != nil {
-		return
-	}
-	chooseTime, err := time.Parse("15:04", parseData.StartTime)
-	if h.checkAndLogError(
-		err, log, query.Message, "parseData.StartTime does not parse %s", parseData.StartTime) {
-		return
-	}
-
 	user, err := h.getOrCreateUser(query.From.ID, query.Message, log)
 	if err != nil {
 		return
 	}
 
+	dentalProUser, _, err := h.getOrCreatePatient(*user.Name, *user.Lastname, *user.Phone, query.Message, log)
+	if err != nil {
+		return
+	}
+
 	register, err := h.getRegister(*user, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	crmDoctor, err := h.getCRMDoctor(register.DoctorID, query.Message, log)
 	if err != nil {
 		return
 	}
@@ -408,14 +408,45 @@ func (h *TelegramBotHandler) RegisterCallback(query *tgbotapi.CallbackQuery) {
 	intervals, err := h.getCRMFreeIntervals(
 		register.DoctorID, *register.Datetime, appointment.Time, query.Message, log,
 	)
+	chooseTime := DatetimeToTime(*register.Datetime)
+	chooseDate := DatetimeToTime(*register.Datetime)
 	if err != nil {
 		return
 	}
 	for _, interval := range intervals {
-		if time.Time(interval.Begin).Equal(chooseTime) {
-			// если проверку прошла
+		begin := time.Time(interval.Begin)
+		if begin.Equal(chooseTime) {
+			record, err := h.dentalProClient.RecordCreate(
+				chooseDate, chooseTime,
+				chooseTime.Add(time.Duration(appointment.Time)*time.Minute), *register.DoctorID,
+				dentalProUser.ExternalID, appointment.ID, false,
+			)
+			if h.checkAndLogError(err, log, query.Message, "") {
+				return
+			}
+
+			text := fmt.Sprintf(h.userTexts.RegisterSuccess,
+				time.Time(record.Date).Format("2006-01-02"),
+				time.Time(record.TimeBegin).Format("15:04:05"),
+				crmDoctor.FIO,
+				appointment.Name,
+				appointment.Time,
+				dentalProUser.Surname,
+				dentalProUser.Name,
+			)
+			edit := tgbotapi.NewEditMessageText(query.Message.Chat.ID, query.Message.MessageID, text)
+			edit.ParseMode = HTML
+			_, _ = h.Edit(edit, true)
+			return
 		}
 	}
+
+	backKeyboard := tgbotapi.InlineKeyboardMarkup{
+		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{{h.getBackButton("calendar")}},
+	}
+	edit := tgbotapi.NewEditMessageTextAndMarkup(
+		query.Message.Chat.ID, query.Message.MessageID, h.userTexts.RegisterIntervalError, backKeyboard)
+	_, _ = h.Edit(edit, true)
 }
 
 func (h *TelegramBotHandler) ChangeNameCallback(
@@ -445,6 +476,9 @@ func (h *TelegramBotHandler) ChangeNameCallback(
 
 		registerRepo := database.RegisterRepository{DB: h.db}
 		err = registerRepo.Create(register)
+		if h.checkAndLogError(err, log, message, "") {
+			return
+		}
 		h.createApproveMessage(register, user, newMessage, log)
 	})
 

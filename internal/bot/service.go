@@ -241,19 +241,20 @@ func (h *TelegramBotHandler) ChangeToDoctorsMarkup(message *tgbotapi.Message) {
 	_, _ = h.Edit(response, true)
 }
 
-// GetOrCreatePatient return: Patient, created, error
-func (h *TelegramBotHandler) GetOrCreatePatient(name, surname, phone string) (crm.Patient, bool, error) {
+// getOrCreatePatient return: Patient, created, error
+func (h *TelegramBotHandler) getOrCreatePatient(name, surname, phone string,
+	message *tgbotapi.Message, log *logrus.Entry) (crm.Patient, bool, error) {
 	patient, err := h.dentalProClient.PatientByPhone(phone)
 	var reqErr *crm.RequestError
-	if errors.As(err, &reqErr) {
-		if reqErr.Code != http.StatusNotFound {
-			patient, err = h.dentalProClient.CreatePatient(name, surname, phone)
-			if err != nil {
-				logrus.Error(err)
-				return crm.Patient{}, false, err
-			}
-			return patient, true, nil
+	if errors.As(err, &reqErr) && reqErr.Code == http.StatusNotFound {
+		patient, err = h.dentalProClient.CreatePatient(name, surname, phone)
+		if h.checkAndLogError(err, log, message, "") {
+			return crm.Patient{}, false, err
 		}
+		return patient, true, nil
+	}
+	if h.checkAndLogError(err, log, message, "") {
+		return patient, false, err
 	}
 	return patient, false, nil
 }
@@ -553,6 +554,7 @@ func (h *TelegramBotHandler) getCRMFreeIntervals(
 		return nil, err
 	}
 
+	date = ToDate(date)
 	freeIntervals, err := h.dentalProClient.FreeIntervals(
 		date, date, -1, *doctorID, h.branchID, duration)
 	if len(freeIntervals) == 0 {
@@ -569,6 +571,11 @@ func (h *TelegramBotHandler) getCRMFreeIntervals(
 		return nil, err
 	}
 	return times, nil
+}
+
+func ToDate(datetime time.Time) time.Time {
+	return time.Date(
+		datetime.Year(), datetime.Month(), datetime.Day(), 0, 0, 0, 0, datetime.Location())
 }
 
 func (h *TelegramBotHandler) createSpacialButton(text, data string) tgbotapi.InlineKeyboardButton {
@@ -785,4 +792,14 @@ func (h *TelegramBotHandler) createApproveMessage(
 		edit.ParseMode = HTML
 		_, _ = h.Edit(edit, true)
 	}
+}
+
+func (h *TelegramBotHandler) getCRMRecordsList(crmUserID int64,
+	message *tgbotapi.Message,
+	log *logrus.Entry) ([]crm.ShortRecord, error) {
+	records, err := h.dentalProClient.PatientRecords(crmUserID)
+	if h.checkAndLogError(err, log, message, "Get CRM Record List err") {
+		return nil, err
+	}
+	return records, nil
 }
