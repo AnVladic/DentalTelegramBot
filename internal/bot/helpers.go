@@ -1,13 +1,20 @@
 package bot
 
 import (
+	"sort"
 	"time"
 )
 
 func GetMapValues(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	values := make([]string, 0, len(m))
-	for _, v := range m {
-		values = append(values, v)
+	for _, k := range keys {
+		values = append(values, m[k])
 	}
 	return values
 }

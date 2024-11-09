@@ -121,7 +121,7 @@ func (h *TelegramBotHandler) GenerateTimesheetCalendar(
 	schedule []crm.DayInterval, currentDate time.Time, doctorID int64) tgbotapi.InlineKeyboardMarkup {
 	textDayFunc := func(day, month, year int) (string, string) {
 		btnText := fmt.Sprintf("%v", day)
-		now := time.Now()
+		now := h.nowTime.Now()
 		if now.Day() <= day || int(now.Month()) < month || now.Year() < year {
 			workSchedule := findScheduleByDate(day, month, year, schedule)
 			if workSchedule != nil && len(workSchedule.Slots) > 0 {
@@ -142,14 +142,14 @@ func (h *TelegramBotHandler) GenerateTimesheetCalendar(
 		DoctorID:     doctorID,
 	}
 
-	now := time.Now()
+	now := h.nowTime.Now()
 	year := currentDate.Year()
 	month := currentDate.Month()
 	showPrev := now.Year() < year || now.Month() < month
 	keyboard := tgbotapi.InlineKeyboardMarkup{}
 	keyboard = addMonthYearRow(year, month, keyboard)
 	keyboard = addDaysNamesRow(keyboard)
-	keyboard = generateMonth(year, int(month), keyboard, textDayFunc)
+	keyboard = h.generateMonth(year, int(month), keyboard, textDayFunc)
 	keyboard = addSpecialButtons(year, int(month), keyboard, specialButtonCallbackData, showPrev,
 		currentDate.Sub(now) < 365*24*time.Hour)
 	keyboard = h.AddBackButton(keyboard, "appointments")
@@ -343,22 +343,33 @@ func (h *TelegramBotHandler) createAppointmentButtons(
 	appointments map[int64]map[int64]crm.Appointment,
 	query *tgbotapi.CallbackQuery, log *logrus.Entry,
 ) tgbotapi.InlineKeyboardMarkup {
-	buttons := make([][]tgbotapi.InlineKeyboardButton, 0)
+	var allAppointments []crm.Appointment
+
 	for _, doctorAppointments := range appointments {
 		for _, appointment := range doctorAppointments {
-			data, err := json.Marshal(TelegramChoiceAppointmentCallback{
-				CallbackData{"appointment"},
-				appointment.ID,
-			})
-			if h.checkAndLogError(err, log, query.Message, "Marshal error") {
-				continue
-			}
-
-			text := fmt.Sprintf("(%d мин.) %s", appointment.Time, appointment.Name)
-			button := tgbotapi.NewInlineKeyboardButtonData(text, string(data))
-			buttons = append(buttons, []tgbotapi.InlineKeyboardButton{button})
+			allAppointments = append(allAppointments, appointment)
 		}
 	}
+
+	sort.Slice(allAppointments, func(i, j int) bool {
+		return allAppointments[i].Time < allAppointments[j].Time
+	})
+
+	buttons := make([][]tgbotapi.InlineKeyboardButton, 0)
+	for _, appointment := range allAppointments {
+		data, err := json.Marshal(TelegramChoiceAppointmentCallback{
+			CallbackData{"appointment"},
+			appointment.ID,
+		})
+		if h.checkAndLogError(err, log, query.Message, "Marshal error") {
+			continue
+		}
+
+		text := fmt.Sprintf("(%d мин.) %s", appointment.Time, appointment.Name)
+		button := tgbotapi.NewInlineKeyboardButtonData(text, string(data))
+		buttons = append(buttons, []tgbotapi.InlineKeyboardButton{button})
+	}
+
 	keyboard := tgbotapi.InlineKeyboardMarkup{InlineKeyboard: buttons}
 	return h.AddBackButton(keyboard, "doctors")
 }
@@ -610,7 +621,7 @@ func (h *TelegramBotHandler) paginateIntervals(
 }
 
 func (h *TelegramBotHandler) localTimeCutoff() time.Time {
-	return time.Now().Add(15 * time.Minute).In(h.location)
+	return h.nowTime.Now().Add(15 * time.Minute).In(h.location)
 }
 
 func (h *TelegramBotHandler) generateIntervalButtons(

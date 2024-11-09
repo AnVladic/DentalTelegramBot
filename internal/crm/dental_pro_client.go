@@ -29,9 +29,9 @@ type DentalProClient struct {
 	baseURL   string
 }
 
-func NewDentalProClient(token string, secretKey string, test bool) IDentalProClient {
+func NewDentalProClient(token string, secretKey string, test bool, testPath string) IDentalProClient {
 	if test {
-		return NewDentalProClientTest(token, secretKey)
+		return NewDentalProClientTest(token, testPath, secretKey)
 	}
 	return &DentalProClient{Token: token, SecretKey: secretKey, baseURL: "https://api.dentaltelegram.com"}
 }

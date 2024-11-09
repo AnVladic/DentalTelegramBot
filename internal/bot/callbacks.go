@@ -19,7 +19,7 @@ type TelegramCalendarSpecialButtonCallback struct {
 
 type TelegramSpecialCallback struct {
 	CallbackData
-	Data string
+	Data string `json:"d"`
 }
 
 type TelegramBotDoctorCallbackData struct {
@@ -86,7 +86,7 @@ func (h *TelegramBotHandler) ShowCalendarCallback(query *tgbotapi.CallbackQuery)
 		return
 	}
 
-	now := time.Now()
+	now := h.nowTime.Now()
 
 	text := fmt.Sprintf(
 		"%s - %s\n%s\n🟢 Доступные дни", h.userTexts.Calendar, doctor.FIO, appointment.Name,
@@ -121,7 +121,7 @@ func (h *TelegramBotHandler) SwitchTimesheetMonthCallback(query *tgbotapi.Callba
 	_, err = fmt.Sscanf(specialButtonCallbackData.Month, "%d.%d", &year, &month)
 	if err != nil {
 		if register.Datetime == nil {
-			now := time.Now()
+			now := h.nowTime.Now()
 			register.Datetime = &now
 		}
 		year = register.Datetime.Year()
@@ -409,7 +409,7 @@ func (h *TelegramBotHandler) RegisterCallback(query *tgbotapi.CallbackQuery) {
 		register.DoctorID, *register.Datetime, appointment.Time, query.Message, log,
 	)
 	chooseTime := DatetimeToTime(*register.Datetime)
-	chooseDate := DatetimeToTime(*register.Datetime)
+	chooseDate := DatetimeToDate(*register.Datetime)
 	if err != nil {
 		return
 	}

@@ -43,6 +43,7 @@ func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.D
 	}
 
 	tgBot, err := tgbotapi.NewBotAPI(botToken)
+	rgBotAPI := &bot.RealBot{BotAPI: tgBot}
 	if err != nil {
 		logrus.Panic(err)
 	}
@@ -64,17 +65,19 @@ func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.D
 	}
 
 	telegramBotHandler := bot.NewTelegramBotHandler(
-		tgBot, *userTexts, dentalProClient, db, branchID, location,
+		rgBotAPI, *userTexts, dentalProClient, db, branchID, location, bot.RealNow{},
 	)
-	router := bot.NewRouter(tgBot, telegramBotHandler)
+	router := bot.NewRouter(tgBot, telegramBotHandler, false)
 
 	go bot.CleanupUserStates(router.ChatStatesMu, router.TgChatStates)
 	fmt.Println("Server is ready")
-	router.StartListening()
+
+	stopChan := make(chan struct{})
+	router.StartListening(stopChan)
 }
 
 func main() {
-	pkg.InitLogger()
+	pkg.InitLogger("app.log")
 	LoadEnv()
 	db := OpenDB()
 	defer func(db *sql.DB) {
@@ -92,6 +95,6 @@ func main() {
 	}
 
 	dentalProClient := crm.NewDentalProClient(
-		os.Getenv("DENTAL_PRO_TOKEN"), os.Getenv("DENTAL_PRO_SECRET"), TEST)
+		os.Getenv("DENTAL_PRO_TOKEN"), os.Getenv("DENTAL_PRO_SECRET"), TEST, "internal/crm")
 	InitTelegramBot(DEBUG, dentalProClient, db)
 }

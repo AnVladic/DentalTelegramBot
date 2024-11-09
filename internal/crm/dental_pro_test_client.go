@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -30,21 +31,21 @@ func (e *RequestError) Error() string {
 	return fmt.Sprintf("error %d: %s", e.Code, e.Message)
 }
 
-func GetTestFreeIntervals() []DayInterval {
+func GetTestFreeIntervals(path string) []DayInterval {
 	response := struct {
 		BaseResponse
 		Data []DayInterval `json:"data"`
 	}{}
-	parseJSONFile(&response, "internal/crm/test_data/free_time_intervals.json")
+	parseJSONFile(&response, filepath.Join(path, "/test_data/free_time_intervals.json"))
 	return response.Data
 }
 
-func GetTestDoctors() []Doctor {
+func GetTestDoctors(path string) []Doctor {
 	response := struct {
 		BaseResponse
 		Data []Doctor `json:"data"`
 	}{}
-	parseJSONFile(&response, "internal/crm/test_data/doctor_list.json")
+	parseJSONFile(&response, filepath.Join(path, "/test_data/doctor_list.json"))
 	return response.Data
 }
 
@@ -86,13 +87,13 @@ func GetTestPatients() map[int64]Patient {
 	return map[int64]Patient{}
 }
 
-func NewDentalProClientTest(token, secretKey string) *DentalProClientTest {
+func NewDentalProClientTest(token, path, secretKey string) *DentalProClientTest {
 	return &DentalProClientTest{
 		Token:            token,
 		SecretKey:        secretKey,
-		Doctors:          GetTestDoctors(),
+		Doctors:          GetTestDoctors(path),
 		Appointments:     GetTestAppointments(),
-		AllFreeIntervals: GetTestFreeIntervals(),
+		AllFreeIntervals: GetTestFreeIntervals(path),
 		Patients:         GetTestPatients(),
 		Records:          map[int64][]Record{},
 		mu:               &sync.Mutex{},

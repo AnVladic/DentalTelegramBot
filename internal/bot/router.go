@@ -9,23 +9,28 @@ import (
 )
 
 type Router struct {
-	bot          *tgbotapi.BotAPI
+	bot          ITGBotAPI
 	tgBotHandler *TelegramBotHandler
 	TgChatStates *map[int64]*TelegramChatState
 	ChatStatesMu *sync.Mutex
+	TestWG       *sync.WaitGroup
 }
 
 type CallbackData struct {
 	Command string `json:"command"`
 }
 
-func NewRouter(bot *tgbotapi.BotAPI, tgBotHandler *TelegramBotHandler) *Router {
-	return &Router{
+func NewRouter(bot ITGBotAPI, tgBotHandler *TelegramBotHandler, test bool) *Router {
+	router := &Router{
 		bot:          bot,
 		tgBotHandler: tgBotHandler,
 		TgChatStates: &map[int64]*TelegramChatState{},
 		ChatStatesMu: &sync.Mutex{},
 	}
+	if test {
+		router.TestWG = new(sync.WaitGroup)
+	}
+	return router
 }
 
 func (r *Router) GetOrCreateChatState(chatID int64) *TelegramChatState {
@@ -39,47 +44,58 @@ func (r *Router) GetOrCreateChatState(chatID int64) *TelegramChatState {
 	return chatState
 }
 
-func (r *Router) StartListening() {
+func (r *Router) StartListening(stopChan chan struct{}) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
 	updates := r.bot.GetUpdatesChan(u)
 
-	for update := range updates {
-		go func() {
-			if update.Message != nil {
-				r.handleMessage(update.Message)
-			}
-			if update.CallbackQuery != nil {
-				var data CallbackData
-				chatState := r.GetOrCreateChatState(update.CallbackQuery.Message.Chat.ID)
-				callbackData := []byte(update.CallbackQuery.Data)
-				err := json.Unmarshal(callbackData, &data)
-				if err != nil {
-					logrus.Error(err)
+	for {
+		select {
+		case update := <-updates:
+			go func() {
+				if r.TestWG != nil {
+					defer r.TestWG.Done()
 				}
-				switch data.Command {
-				case "switch_timesheet_month":
-					r.tgBotHandler.SwitchTimesheetMonthCallback(update.CallbackQuery)
-				case "select_doctor":
-					r.tgBotHandler.ShowAppointments(update.CallbackQuery)
-				case "day":
-					r.tgBotHandler.ChoiceDayCallback(update.CallbackQuery)
-				case "appointment":
-					r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
-				case "interval":
-					r.tgBotHandler.RegisterApproveCallback(update.CallbackQuery, chatState)
-				case "change_name":
-					r.tgBotHandler.ChangeNameCallback(update.CallbackQuery, chatState)
-				case "approve":
-					r.tgBotHandler.RegisterCallback(update.CallbackQuery)
-				case "back":
-					r.tgBotHandler.BackCallback(update.CallbackQuery)
-				default:
-					logrus.Errorf("unknown command \"%s\"", data.Command)
+
+				if update.Message != nil {
+					r.handleMessage(update.Message)
 				}
-			}
-		}()
+				if update.CallbackQuery != nil {
+					var data CallbackData
+					chatState := r.GetOrCreateChatState(update.CallbackQuery.Message.Chat.ID)
+					callbackData := []byte(update.CallbackQuery.Data)
+					err := json.Unmarshal(callbackData, &data)
+					if err != nil {
+						logrus.Error(err)
+					}
+					switch data.Command {
+					case "switch_timesheet_month":
+						r.tgBotHandler.SwitchTimesheetMonthCallback(update.CallbackQuery)
+					case "select_doctor":
+						r.tgBotHandler.ShowAppointments(update.CallbackQuery)
+					case "day":
+						r.tgBotHandler.ChoiceDayCallback(update.CallbackQuery)
+					case "appointment":
+						r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
+					case "interval":
+						r.tgBotHandler.RegisterApproveCallback(update.CallbackQuery, chatState)
+					case "change_name":
+						r.tgBotHandler.ChangeNameCallback(update.CallbackQuery, chatState)
+					case "approve":
+						r.tgBotHandler.RegisterCallback(update.CallbackQuery)
+					case "back":
+						r.tgBotHandler.BackCallback(update.CallbackQuery)
+					default:
+						logrus.Errorf("unknown command \"%s\"", data.Command)
+					}
+				}
+			}()
+
+		case <-stopChan:
+			logrus.Println("Stop Listening")
+			return
+		}
 	}
 }
 

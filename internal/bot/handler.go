@@ -13,27 +13,29 @@ import (
 )
 
 type TelegramBotHandler struct {
-	bot             *tgbotapi.BotAPI
+	bot             ITGBotAPI
 	userTexts       UserTexts
 	dentalProClient crm.IDentalProClient
 	db              *sql.DB
 	branchID        int64
 	location        *time.Location
+	nowTime         INow
 }
 
 type HandlerMethod func(message *tgbotapi.Message, chatState *TelegramChatState)
 
 func NewTelegramBotHandler(
-	bot *tgbotapi.BotAPI,
+	bot ITGBotAPI,
 	userTexts UserTexts,
 	dentalProClient crm.IDentalProClient,
 	db *sql.DB,
 	branchID int64,
 	location *time.Location,
+	nowTime INow,
 ) *TelegramBotHandler {
 	handler := &TelegramBotHandler{
 		bot: bot, userTexts: userTexts, dentalProClient: dentalProClient, db: db, branchID: branchID,
-		location: location,
+		location: location, nowTime: nowTime,
 	}
 	return handler
 }
@@ -65,14 +67,12 @@ func (h *TelegramBotHandler) RegisterCommandHandler(message *tgbotapi.Message, c
 		"func":   "RegisterCommandHandler",
 	})
 
-	go func() {
-		response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.Wait)
-		newMsg, err := h.Send(response, true)
-		if h.checkAndLogError(err, log, message, "") {
-			return
-		}
-		h.ChangeToDoctorsMarkup(newMsg)
-	}()
+	response := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.Wait)
+	newMsg, err := h.Send(response, true)
+	if h.checkAndLogError(err, log, message, "") {
+		return
+	}
+	h.ChangeToDoctorsMarkup(newMsg)
 }
 
 func (h *TelegramBotHandler) CancelCommandHandler(message *tgbotapi.Message, chatState *TelegramChatState) {
@@ -129,9 +129,7 @@ func (h *TelegramBotHandler) NoAuthChangeNameHandler(
 	}
 	msg := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.ContactsAddedSuccess)
 	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-	chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
-		h.ChangeNameHandler(message, chatState, onSuccess)
-	})
+	h.ChangeNameHandler(message, chatState, onSuccess)
 }
 
 func (h *TelegramBotHandler) ChangeNameHandler(

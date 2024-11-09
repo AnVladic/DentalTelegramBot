@@ -12,18 +12,6 @@ import (
 const BTN_PREV = "<"
 const BTN_NEXT = ">"
 
-func GenerateCalendar(year int, month time.Month, doctorID int64) tgbotapi.InlineKeyboardMarkup {
-	keyboard := tgbotapi.InlineKeyboardMarkup{}
-	keyboard = addMonthYearRow(year, month, keyboard)
-	keyboard = addDaysNamesRow(keyboard)
-	keyboard = generateMonth(year, int(month), keyboard, nil)
-	keyboard = addSpecialButtons(year, int(month), keyboard, TelegramCalendarSpecialButtonCallback{
-		CallbackData: CallbackData{Command: "switch_timesheet_month"},
-		DoctorID:     doctorID,
-	}, true, true)
-	return keyboard
-}
-
 func addMonthYearRow(year int, month time.Month, keyboard tgbotapi.InlineKeyboardMarkup) tgbotapi.InlineKeyboardMarkup {
 	var row []tgbotapi.InlineKeyboardButton
 	btn := tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("%s %v", month, year), "1")
@@ -43,7 +31,7 @@ func addDaysNamesRow(keyboard tgbotapi.InlineKeyboardMarkup) tgbotapi.InlineKeyb
 	return keyboard
 }
 
-func generateMonth(
+func (h *TelegramBotHandler) generateMonth(
 	year int, month int, keyboard tgbotapi.InlineKeyboardMarkup,
 	textDayFunc func(day, month, year int) (string, string),
 ) tgbotapi.InlineKeyboardMarkup {
@@ -51,7 +39,7 @@ func generateMonth(
 	if textDayFunc == nil {
 		textDayFunc = func(day, month, year int) (string, string) {
 			btnText := fmt.Sprintf("%v", day)
-			if time.Now().Day() == day {
+			if h.nowTime.Now().Day() == day {
 				btnText = fmt.Sprintf("%v!", day)
 			}
 			return btnText, fmt.Sprintf("%v.%v.%v", year, month, day)
@@ -64,7 +52,7 @@ func generateMonth(
 	weekday := int(firstDay.Weekday())
 	var rowDays []tgbotapi.InlineKeyboardButton
 	for i := 1; i <= weekday; i++ {
-		btn := tgbotapi.NewInlineKeyboardButtonData(" ", string(i))
+		btn := tgbotapi.NewInlineKeyboardButtonData(" ", strconv.Itoa(i))
 		rowDays = append(rowDays, btn)
 	}
 
@@ -91,7 +79,7 @@ func generateMonth(
 		amountWeek++
 	}
 	for i := 1; i <= 7-amountWeek; i++ {
-		btn := tgbotapi.NewInlineKeyboardButtonData(" ", string(i))
+		btn := tgbotapi.NewInlineKeyboardButtonData(" ", strconv.Itoa(i))
 		rowDays = append(rowDays, btn)
 	}
 

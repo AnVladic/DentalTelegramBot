@@ -15,3 +15,6 @@
 
 ### Клиентские ресурсы
 - [CRM Dental Pro](https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/)
+
+### Unit тесты
+В unit тестах текущее время считается как 2024-11-09 17:00:00 по МСК
