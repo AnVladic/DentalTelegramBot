@@ -182,6 +182,11 @@ func (h *TelegramBotHandler) ChangeLastNameHandler(
 		return
 	}
 
+	err = h.updateDentalProID(message.From.ID, patient.ExternalID, message, log)
+	if err != nil {
+		return
+	}
+
 	text := fmt.Sprintf(
 		h.userTexts.ChangeNameSucceed, patient.Surname, patient.Name)
 	response := tgbotapi.NewMessage(message.Chat.ID, text)
@@ -250,6 +255,13 @@ func (h *TelegramBotHandler) ShowRecordsListHandler(
 		return
 	}
 
+	if user.DentalProID == nil {
+		user.DentalProID = &patient.ExternalID
+		if h.updateDentalProID(message.From.ID, patient.ExternalID, message, log) != nil {
+			return
+		}
+	}
+
 	records, err := h.getCRMRecordsList(patient.ExternalID, message, log)
 	if err != nil {
 		return
@@ -264,7 +276,8 @@ func (h *TelegramBotHandler) ShowRecordsListHandler(
 	rectorsTexts := make([]string, len(records))
 	for i, record := range records {
 		rectorsTexts[i] = fmt.Sprintf(h.userTexts.RecordItem,
-			time.Time(record.DateStart).Format("2006-01-02 15:04:05"),
+			i+1,
+			time.Time(record.DateStart).Format("2006-01-02 15:04"),
 			record.DoctorName,
 			record.DoctorGroup,
 			record.Name,

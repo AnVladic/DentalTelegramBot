@@ -164,7 +164,9 @@ func (h *TelegramBotHandler) ShowAppointments(query *tgbotapi.CallbackQuery) {
 
 	if callbackData.DoctorID > 0 {
 		ok := h.upsertRegisterDoctorID(
-			user.ID, query.Message.Chat.ID, query.Message.MessageID, callbackData.DoctorID, query.Message, log)
+			user.ID, query.Message.Chat.ID, query.Message.MessageID, callbackData.DoctorID,
+			query.Message, log,
+		)
 		if !ok {
 			return
 		}
@@ -176,7 +178,24 @@ func (h *TelegramBotHandler) ShowAppointments(query *tgbotapi.CallbackQuery) {
 		callbackData.DoctorID = *register.DoctorID
 	}
 
-	appointments, err := h.getAvailableAppointments(user, callbackData.DoctorID, query.Data, log, query.Message)
+	if user.DentalProID != nil {
+		record, err := h.findRecordByPatientAndDoctor(
+			callbackData.DoctorID, *user.DentalProID, query.Message, log)
+		if h.checkAndLogError(err, log, query.Message, "PatientRecords %s", err) {
+			return
+		}
+		if record != nil {
+			keyboard := tgbotapi.NewInlineKeyboardMarkup()
+			edit := tgbotapi.NewEditMessageTextAndMarkup(
+				query.Message.Chat.ID, query.Message.MessageID, h.userTexts.HasSameRecord,
+				h.AddBackButton(keyboard, "doctors"))
+			_, _ = h.Edit(edit, true)
+			return
+		}
+	}
+
+	appointments, err := h.getAvailableAppointments(
+		user, callbackData.DoctorID, query.Data, log, query.Message)
 	if err != nil {
 		return
 	}
@@ -188,7 +207,8 @@ func (h *TelegramBotHandler) ShowAppointments(query *tgbotapi.CallbackQuery) {
 		text = h.noAppointmentsText(callbackData.DoctorID, query, log)
 	}
 
-	edit := tgbotapi.NewEditMessageTextAndMarkup(query.Message.Chat.ID, query.Message.MessageID, text, keyboard)
+	edit := tgbotapi.NewEditMessageTextAndMarkup(
+		query.Message.Chat.ID, query.Message.MessageID, text, keyboard)
 	_, _ = h.Edit(edit, true)
 }
 
@@ -249,7 +269,7 @@ func (h *TelegramBotHandler) ChoiceDayCallback(query *tgbotapi.CallbackQuery) {
 	var text string
 	dataStr := date.Format("02.01.2006")
 	if len(intervals) == 0 {
-		text = fmt.Sprintf(h.userTexts.DontHasIntervals, dataStr, doctor.FIO, doctor.FIO, appointment.Name)
+		text = fmt.Sprintf(h.userTexts.DontHasIntervals, dataStr, doctor.FIO, appointment.Name, doctor.FIO)
 	} else {
 		text = fmt.Sprintf(h.userTexts.ChooseInterval, dataStr, doctor.FIO, appointment.Name)
 	}
@@ -386,6 +406,10 @@ func (h *TelegramBotHandler) RegisterCallback(query *tgbotapi.CallbackQuery) {
 
 	dentalProUser, _, err := h.getOrCreatePatient(*user.Name, *user.Lastname, *user.Phone, query.Message, log)
 	if err != nil {
+		return
+	}
+
+	if h.updateDentalProID(query.From.ID, dentalProUser.ExternalID, query.Message, log) != nil {
 		return
 	}
 

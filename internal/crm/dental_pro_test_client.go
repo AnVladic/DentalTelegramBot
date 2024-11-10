@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"net/http"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -15,7 +17,7 @@ type DentalProClientTest struct {
 
 	mu *sync.Mutex
 
-	Doctors          []Doctor
+	Doctors          map[int64]Doctor
 	Appointments     map[int64]map[int64]Appointment
 	Patients         map[int64]Patient
 	AllFreeIntervals []DayInterval
@@ -40,13 +42,17 @@ func GetTestFreeIntervals(path string) []DayInterval {
 	return response.Data
 }
 
-func GetTestDoctors(path string) []Doctor {
+func GetTestDoctors(path string) map[int64]Doctor {
 	response := struct {
 		BaseResponse
 		Data []Doctor `json:"data"`
 	}{}
 	parseJSONFile(&response, filepath.Join(path, "/test_data/doctor_list.json"))
-	return response.Data
+	doctors := make(map[int64]Doctor, len(response.Data))
+	for _, doctor := range response.Data {
+		doctors[doctor.ID] = doctor
+	}
+	return doctors
 }
 
 func GetTestAppointments() map[int64]map[int64]Appointment {
@@ -80,6 +86,17 @@ func GetTestAppointments() map[int64]map[int64]Appointment {
 				IsPlanned:      false,
 			},
 		},
+		12: {
+			86: {
+				ID:             86,
+				Cost:           0,
+				Name:           "Повторная консультация терапевта.",
+				Time:           30,
+				Color:          "#3a8f3f",
+				DiagnosticType: "Консультация",
+				IsPlanned:      false,
+			},
+		},
 	}
 }
 
@@ -102,7 +119,14 @@ func NewDentalProClientTest(token, path, secretKey string) *DentalProClientTest 
 
 func (c *DentalProClientTest) DoctorsList() ([]Doctor, error) {
 	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/test?method=mobile/doctor/list&target=modal
-	return c.Doctors, nil
+	doctors := make([]Doctor, 0, len(c.Doctors))
+	for _, doctor := range c.Doctors {
+		doctors = append(doctors, doctor)
+	}
+	sort.Slice(doctors, func(i, j int) bool {
+		return doctors[i].ID < doctors[j].ID
+	})
+	return doctors, nil
 }
 
 func (c *DentalProClientTest) AvailableAppointments(
@@ -264,6 +288,14 @@ func (c *DentalProClientTest) RecordCreate(
 	return &record, nil
 }
 
+func (c *DentalProClientTest) joinUserGroups(userGroups map[string]string) string {
+	groups := make([]string, 0, len(userGroups))
+	for _, group := range userGroups {
+		groups = append(groups, group)
+	}
+	return strings.Join(groups, "")
+}
+
 func (c *DentalProClientTest) PatientRecords(clientID int64) ([]ShortRecord, error) {
 	// Записи пациента по ID пациента
 	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=i/client/records&target=modal
@@ -287,7 +319,7 @@ func (c *DentalProClientTest) PatientRecords(clientID int64) ([]ShortRecord, err
 			Name:               "Тестовая запись.",
 			DoctorID:           record.DoctorID,
 			DoctorName:         doctor.FIO,
-			DoctorGroup:        "Тестировщики",
+			DoctorGroup:        c.joinUserGroups(doctor.Departments),
 			BranchID:           3,
 			Total:              3000,
 		}

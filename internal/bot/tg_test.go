@@ -133,8 +133,13 @@ func createContact() *tgbotapi.Contact {
 func checkCases(t *testing.T, router *Router, mockBot *MockTelegramAPI, chatID int64, cases []TestCase) {
 	for i, _case := range cases {
 		expectedMessages := _case.expected()
+		mockBot.ExpectedCalls = nil
 		for _, expectedMessage := range expectedMessages {
-			mockBot.On("Send", expectedMessage).Return(
+			var args interface{} = expectedMessage
+			if expectedMessage == nil {
+				args = mock.Anything
+			}
+			mockBot.On("Send", args).Return(
 				*createTestMessage(chatID, mockBot.messageID, ""), nil,
 			).Once()
 		}
@@ -142,7 +147,13 @@ func checkCases(t *testing.T, router *Router, mockBot *MockTelegramAPI, chatID i
 		mockBot.Updates <- _case.userMessage()
 		router.TestWG.Wait()
 		for _, expectedMessage := range expectedMessages {
-			mockBot.AssertCalled(t, "Send", expectedMessage)
+			var expected interface{} = expectedMessage
+			if expectedMessage == nil {
+				expected = mock.Anything
+			}
+			if !mockBot.AssertCalled(t, "Send", expected) {
+				return
+			}
 		}
 		fmt.Printf("pass case #%d\n", i+1)
 	}
@@ -258,11 +269,11 @@ func TestRegisterHandle(t *testing.T) {
 		},
 		{ // 6
 			userMessage: func() tgbotapi.Update {
-				callbackQuery := createTestQuery(chatID, 0, `{"command":"select_doctor","d":12}`)
+				callbackQuery := createTestQuery(chatID, 0, `{"command":"select_doctor","d":14}`)
 				return tgbotapi.Update{CallbackQuery: callbackQuery}
 			},
 			expected: func() []tgbotapi.Chattable {
-				text := "К сожалению, у врача Новикова Н.В. пока нет доступных приемов 😔."
+				text := "К сожалению, у врача Коченова Е.Д. пока нет доступных приемов 😔."
 				keyboard := tgbotapi.InlineKeyboardMarkup{}
 				keyboard.InlineKeyboard = [][]tgbotapi.InlineKeyboardButton{
 					{tgbotapi.NewInlineKeyboardButtonData("Назад", `{"command":"back","b":"doctors"}`)},
@@ -415,7 +426,7 @@ func TestRegisterHandle(t *testing.T) {
 				return []tgbotapi.Chattable{exceptedMsg}
 			},
 		},
-		{ // 11
+		{ // 12
 			userMessage: func() tgbotapi.Update {
 				callbackQuery := createTestQuery(chatID, 0, `{"command":"interval","s":"18:00"}`)
 				return tgbotapi.Update{CallbackQuery: callbackQuery}
@@ -443,7 +454,7 @@ func TestRegisterHandle(t *testing.T) {
 				return []tgbotapi.Chattable{exceptedMsg}
 			},
 		},
-		{ // 11
+		{ // 13
 			userMessage: func() tgbotapi.Update {
 				callbackQuery := createTestQuery(chatID, 0, `{"command":"approve","d":"register"}`)
 				return tgbotapi.Update{CallbackQuery: callbackQuery}
@@ -467,6 +478,217 @@ func TestRegisterHandle(t *testing.T) {
 				exceptedMsg := tgbotapi.NewEditMessageText(chatID, 0, text)
 				exceptedMsg.ParseMode = HTML
 				return []tgbotapi.Chattable{exceptedMsg}
+			},
+		},
+
+		// Важное условие, что один клиент может записаться только к одному врачу
+		{ // 14
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 10, `{"command":"select_doctor","d":2}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := "К сожалению, вы не можете записаться к этому врачу, так как уже состоите в списке записавшихся 🩺❗ к нему"
+				keyboard := tgbotapi.InlineKeyboardMarkup{}
+				keyboard.InlineKeyboard = [][]tgbotapi.InlineKeyboardButton{
+					{tgbotapi.NewInlineKeyboardButtonData("Назад", `{"command":"back","b":"doctors"}`)},
+				}
+				exceptedMsg := tgbotapi.NewEditMessageTextAndMarkup(chatID, 10, text, keyboard)
+				return []tgbotapi.Chattable{exceptedMsg}
+			},
+		},
+
+		{ // 15
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"select_doctor","d":12}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := "Пожалуйста, выберите желаемый прием 🌟."
+				keyboard := tgbotapi.InlineKeyboardMarkup{}
+				keyboard.InlineKeyboard = [][]tgbotapi.InlineKeyboardButton{
+					{tgbotapi.NewInlineKeyboardButtonData("(30 мин.) Повторная консультация терапевта.", `{"command":"appointment","a":86}`)},
+					{tgbotapi.NewInlineKeyboardButtonData("Назад", `{"command":"back","b":"doctors"}`)},
+				}
+				exceptedMsg := tgbotapi.NewEditMessageTextAndMarkup(chatID, 15, text, keyboard)
+				return []tgbotapi.Chattable{exceptedMsg}
+			},
+		},
+		{ // 16
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"appointment","a":86}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				return []tgbotapi.Chattable{nil}
+			},
+		},
+		{ // 17
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"switch_timesheet_month","m":"2024.12","d":12}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := "Выберите нужный день - Новикова Н.В.\nПовторная консультация терапевта.\n🟢 Доступные дни"
+				keyboard := tgbotapi.InlineKeyboardMarkup{}
+				keyboard.InlineKeyboard = [][]tgbotapi.InlineKeyboardButton{
+					{tgbotapi.NewInlineKeyboardButtonData("December 2024", "1")},
+					{
+						tgbotapi.NewInlineKeyboardButtonData("Пн", `Пн`),
+						tgbotapi.NewInlineKeyboardButtonData("Вт", `Вт`),
+						tgbotapi.NewInlineKeyboardButtonData("Ср", `Ср`),
+						tgbotapi.NewInlineKeyboardButtonData("Чт", `Чт`),
+						tgbotapi.NewInlineKeyboardButtonData("Пт", `Пт`),
+						tgbotapi.NewInlineKeyboardButtonData("Сб", `Сб`),
+						tgbotapi.NewInlineKeyboardButtonData("Вс", `Вс`),
+					},
+					{
+						tgbotapi.NewInlineKeyboardButtonData(" ", `1`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `2`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `3`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `4`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `5`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `6`),
+						tgbotapi.NewInlineKeyboardButtonData("1", `{"command":"day","dt":"2024.12.1","s":0}`),
+					},
+					{
+						tgbotapi.NewInlineKeyboardButtonData("2", `{"command":"day","dt":"2024.12.2","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("3", `{"command":"day","dt":"2024.12.3","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("4", `{"command":"day","dt":"2024.12.4","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("5", `{"command":"day","dt":"2024.12.5","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("6", `{"command":"day","dt":"2024.12.6","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("7", `{"command":"day","dt":"2024.12.7","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("8", `{"command":"day","dt":"2024.12.8","s":0}`),
+					},
+					{
+						tgbotapi.NewInlineKeyboardButtonData("9", `{"command":"day","dt":"2024.12.9","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("10", `{"command":"day","dt":"2024.12.10","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("🟢 11", `{"command":"day","dt":"2024.12.11","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("12", `{"command":"day","dt":"2024.12.12","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("13", `{"command":"day","dt":"2024.12.13","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("14", `{"command":"day","dt":"2024.12.14","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("15", `{"command":"day","dt":"2024.12.15","s":0}`),
+					},
+					{
+						tgbotapi.NewInlineKeyboardButtonData("16", `{"command":"day","dt":"2024.12.16","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("17", `{"command":"day","dt":"2024.12.17","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("18", `{"command":"day","dt":"2024.12.18","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("19", `{"command":"day","dt":"2024.12.19","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("20", `{"command":"day","dt":"2024.12.20","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("21", `{"command":"day","dt":"2024.12.21","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("22", `{"command":"day","dt":"2024.12.22","s":0}`),
+					},
+					{
+						tgbotapi.NewInlineKeyboardButtonData("23", `{"command":"day","dt":"2024.12.23","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("24", `{"command":"day","dt":"2024.12.24","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("25", `{"command":"day","dt":"2024.12.25","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("26", `{"command":"day","dt":"2024.12.26","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("27", `{"command":"day","dt":"2024.12.27","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("28", `{"command":"day","dt":"2024.12.28","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("29", `{"command":"day","dt":"2024.12.29","s":0}`),
+					},
+					{
+						tgbotapi.NewInlineKeyboardButtonData("30", `{"command":"day","dt":"2024.12.30","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData("31", `{"command":"day","dt":"2024.12.31","s":0}`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `1`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `2`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `3`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `4`),
+						tgbotapi.NewInlineKeyboardButtonData(" ", `5`),
+					},
+					{
+						tgbotapi.NewInlineKeyboardButtonData("<", `{"command":"switch_timesheet_month","m":"2024.11","d":12}`),
+						tgbotapi.NewInlineKeyboardButtonData(">", `{"command":"switch_timesheet_month","m":"2025.1","d":12}`),
+					},
+					{tgbotapi.NewInlineKeyboardButtonData("Назад", `{"command":"back","b":"appointments"}`)},
+				}
+				exceptedMsg := tgbotapi.NewEditMessageTextAndMarkup(chatID, 15, text, keyboard)
+				return []tgbotapi.Chattable{exceptedMsg}
+			},
+		},
+		{ // 18
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"day","dt":"2024.12.8","s":0}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := "День 08.12.2024\nВрач Новикова Н.В.\nПовторная консультация терапевта.\n\n" +
+					"К сожалению, у врача Новикова Н.В. пока нет свободных интервалов в этот день. 😔🗓️"
+				keyboard := tgbotapi.InlineKeyboardMarkup{}
+				keyboard.InlineKeyboard = [][]tgbotapi.InlineKeyboardButton{
+					{tgbotapi.NewInlineKeyboardButtonData("Назад", `{"command":"back","b":"calendar"}`)},
+				}
+				exceptedMsg := tgbotapi.NewEditMessageTextAndMarkup(chatID, 15, text, keyboard)
+				return []tgbotapi.Chattable{exceptedMsg}
+			},
+		},
+		{ // 19
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"day","dt":"2024.12.11","s":0}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := "День 11.12.2024\nВрач Новикова Н.В.\nПовторная консультация терапевта.\n\nПожалуйста, выберите свободное время. 🕒✨"
+				keyboard := tgbotapi.InlineKeyboardMarkup{}
+				keyboard.InlineKeyboard = [][]tgbotapi.InlineKeyboardButton{
+					{
+						tgbotapi.NewInlineKeyboardButtonData("11:10 - 11:40", `{"command":"interval","s":"11:10"}`),
+						tgbotapi.NewInlineKeyboardButtonData("11:40 - 12:10", `{"command":"interval","s":"11:40"}`),
+						tgbotapi.NewInlineKeyboardButtonData("12:10 - 12:40", `{"command":"interval","s":"12:10"}`),
+					},
+					{
+						tgbotapi.NewInlineKeyboardButtonData("12:40 - 13:10", `{"command":"interval","s":"12:40"}`),
+						tgbotapi.NewInlineKeyboardButtonData("13:10 - 13:40", `{"command":"interval","s":"13:10"}`),
+						tgbotapi.NewInlineKeyboardButtonData("13:40 - 14:10", `{"command":"interval","s":"13:40"}`),
+					},
+					{tgbotapi.NewInlineKeyboardButtonData("Назад", `{"command":"back","b":"calendar"}`)},
+				}
+				exceptedMsg := tgbotapi.NewEditMessageTextAndMarkup(chatID, 15, text, keyboard)
+				return []tgbotapi.Chattable{exceptedMsg}
+			},
+		},
+		{ // 21
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"interval","s":"12:40"}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				return []tgbotapi.Chattable{nil}
+			},
+		},
+		{ // 21
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"approve","d":"register"}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				return []tgbotapi.Chattable{nil}
+			},
+		},
+		{ // 22
+			userMessage: func() tgbotapi.Update {
+				message := createTestMessage(chatID, 22, "/myrecords")
+				message.Entities = []tgbotapi.MessageEntity{
+					{Type: "bot_command", Length: len([]rune(message.Text))},
+				}
+				return tgbotapi.Update{Message: message}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := `Список ваших записей в стоматологическую клинику "Олимп" в Софрино
+
+Запись №1
+📅 Дата и время: <b><i>2024-11-09 18:00</i></b>
+👨‍⚕️ Врач: <b><i>Подаева С.Е. - Терапевты</i></b>
+🦷 На прием: <b><i>Тестовая запись. (0 мин)</i></b>
+
+Запись №2
+📅 Дата и время: <b><i>2024-12-11 12:40</i></b>
+👨‍⚕️ Врач: <b><i>Новикова Н.В. - Гигиенисты</i></b>
+🦷 На прием: <b><i>Тестовая запись. (0 мин)</i></b>`
+
+				msg := tgbotapi.NewMessage(chatID, text)
+				msg.ParseMode = HTML
+				return []tgbotapi.Chattable{msg}
 			},
 		},
 	}

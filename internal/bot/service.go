@@ -814,3 +814,28 @@ func (h *TelegramBotHandler) getCRMRecordsList(crmUserID int64,
 	}
 	return records, nil
 }
+
+func (h *TelegramBotHandler) findRecordByPatientAndDoctor(
+	doctorID, patientID int64, message *tgbotapi.Message, log *logrus.Entry) (*crm.ShortRecord, error) {
+	records, err := h.dentalProClient.PatientRecords(patientID)
+	if h.checkAndLogError(err, log, message, "PatientRecords %s", err) {
+		return nil, err
+	}
+	for _, record := range records {
+		if record.DoctorID == doctorID {
+			return &record, nil
+		}
+	}
+	return nil, nil
+}
+
+func (h *TelegramBotHandler) updateDentalProID(
+	telegramID, dentalProID int64, message *tgbotapi.Message, log *logrus.Entry) error {
+	userRepo := database.UserRepository{DB: h.db}
+	err := userRepo.UpdateDentalProIDByTelegramID(telegramID, dentalProID)
+	if h.checkAndLogError(
+		err, log, message, "updateDentalProID tg=%d dentalPro=%d", telegramID, dentalProID) {
+		return err
+	}
+	return nil
+}
