@@ -880,6 +880,9 @@ func (h *TelegramBotHandler) findUserAndCheckPhoneNumber(
 	repository := database.UserRepository{DB: h.db}
 	user, err := repository.GetUserByTelegramID(fromID)
 	if errors.Is(err, sql.ErrNoRows) || user.Phone == nil || *user.Phone == "" {
+		if err == nil {
+			err = fmt.Errorf("user.Phone is empty")
+		}
 		h.RequestPhoneNumber(message)
 		chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
 			_ = h.noAuthRequest(successFunc, chatState, message)

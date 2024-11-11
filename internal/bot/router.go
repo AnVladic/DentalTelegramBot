@@ -103,6 +103,7 @@ func (r *Router) StartListening(stopChan chan struct{}) {
 
 func (r *Router) handleMessage(msg *tgbotapi.Message) {
 	chatState := r.GetOrCreateChatState(msg.Chat.ID)
+	currentNextFunc := chatState.NextFunc
 
 	switch msg.Command() {
 	case "start":
@@ -123,5 +124,8 @@ func (r *Router) handleMessage(msg *tgbotapi.Message) {
 		} else {
 			r.tgBotHandler.UnknownCommandHandler(msg, chatState)
 		}
+	}
+	if currentNextFunc == chatState.NextFunc {
+		chatState.UpdateChatState(nil)
 	}
 }
