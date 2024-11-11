@@ -59,7 +59,11 @@ func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.D
 
 	userTexts := bot.NewUserTexts()
 
-	location, err := time.LoadLocation(os.Getenv("LOCATION"))
+	locStr := os.Getenv("LOCATION")
+	if locStr == "" {
+		locStr = "Europe/Moscow"
+	}
+	location, err := time.LoadLocation(locStr)
 	if err != nil {
 		logrus.Panic(err)
 	}
