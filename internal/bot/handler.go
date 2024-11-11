@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"main/internal/crm"
 	"main/internal/database"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -219,34 +220,16 @@ func (h *TelegramBotHandler) ChangeFirstNameHandler(
 	})
 }
 
-func (h *TelegramBotHandler) NoAuthShowRecordsListHandler(
-	message *tgbotapi.Message, chatState *TelegramChatState) {
-	ok, err := h.GetPhoneNumber(message, chatState)
-	if err != nil {
-		_ = fmt.Errorf("GetPhoneNumber error %w", err)
-		return
-	}
-	if !ok {
-		chatState.UpdateChatState(h.NoAuthShowRecordsListHandler)
-		return
-	}
-	h.ShowRecordsListHandler(message, chatState)
-}
-
 func (h *TelegramBotHandler) ShowRecordsListHandler(
 	message *tgbotapi.Message, chatState *TelegramChatState) {
 	log := logrus.WithFields(logrus.Fields{
 		"module": "bot.handler",
-		"func":   "ShowRecordsList",
+		"func":   "ShowRecordsListHandler",
 	})
 
-	repository := database.UserRepository{DB: h.db}
-	user, err := repository.GetUserByTelegramID(message.From.ID)
-	if errors.Is(err, sql.ErrNoRows) || user.Phone == nil || *user.Phone == "" {
-		h.RequestPhoneNumber(message)
-		chatState.UpdateChatState(h.NoAuthShowRecordsListHandler)
-		return
-	} else if h.checkAndLogError(err, log, message, "") {
+	user, err := h.findUserAndCheckPhoneNumber(
+		h.ShowRecordsListHandler, chatState, message.From.ID, message, log)
+	if err != nil {
 		return
 	}
 
@@ -288,4 +271,98 @@ func (h *TelegramBotHandler) ShowRecordsListHandler(
 	response := tgbotapi.NewMessage(message.Chat.ID, text)
 	response.ParseMode = "HTML"
 	_, _ = h.Send(response, true)
+}
+
+func (h *TelegramBotHandler) DeleteRecordHandler(message *tgbotapi.Message, chatState *TelegramChatState) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot.handler",
+		"func":   "DeleteRecordHandler",
+	})
+
+	user, err := h.findUserAndCheckPhoneNumber(
+		h.DeleteRecordHandler, chatState, message.From.ID, message, log)
+	if err != nil {
+		return
+	}
+
+	_, err = h.getDentalProIDByUser(user, message, log)
+	if err != nil {
+		return
+	}
+
+	records, err := h.getCRMRecordsList(*user.DentalProID, message, log)
+	if err != nil {
+		return
+	}
+
+	if len(records) == 0 {
+		msg := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.HasNoRecords)
+		_, _ = h.Send(msg, true)
+		return
+	}
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup()
+	keyboard.InlineKeyboard = make([][]tgbotapi.InlineKeyboardButton, len(records))
+	for i, record := range records {
+		datetime := time.Time(record.DateStart)
+		keyboard.InlineKeyboard[i] = []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(
+			fmt.Sprintf(
+				h.userTexts.DeleteRecordItem, i+1, datetime.Format("2006-01-02 15:04"),
+				record.DoctorName),
+			fmt.Sprintf(`{"command":"del_r","r":%d}`, record.ID)),
+		}
+	}
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.DeleteRecords)
+	msg.ReplyMarkup = keyboard
+	_, _ = h.Send(msg, true)
+}
+
+func (h *TelegramBotHandler) ApproveRecordHandler(
+	record crm.ShortRecord, message *tgbotapi.Message, chatState *TelegramChatState,
+) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "bot.handler",
+		"func":   "ApproveRecordHandler",
+	})
+
+	var msg tgbotapi.MessageConfig
+
+	datetime := time.Time(record.DateStart)
+
+	if IsMatchIgnoreCase(message.Text, h.userTexts.NegativeAnswers) {
+		text := fmt.Sprintf(h.userTexts.CancelDeleteRecord,
+			datetime.Format("2006-01-02 15:04"),
+			record.DoctorName,
+		)
+		msg = tgbotapi.NewMessage(message.Chat.ID, text)
+	} else if IsMatchIgnoreCase(message.Text, h.userTexts.PositiveAnswers) {
+		response, err := h.dentalProClient.DeleteRecord(record.ID)
+		if !response.Status {
+			err = &crm.RequestError{
+				Code:    http.StatusNotFound,
+				Message: response.Message,
+			}
+		}
+		if h.checkAndLogError(err, log, message, "") {
+			return
+		}
+		text := fmt.Sprintf(h.userTexts.SuccessDeleteRecord,
+			datetime.Format("2006-01-02 15:04"),
+			record.DoctorName,
+		)
+		msg = tgbotapi.NewMessage(message.Chat.ID, text)
+	} else {
+		msg = tgbotapi.NewMessage(message.Chat.ID, h.userTexts.UnknownApproveDeleteRecord)
+		keyboard := tgbotapi.NewReplyKeyboard([]tgbotapi.KeyboardButton{
+			tgbotapi.NewKeyboardButton("✅ Подтвердить"),
+			tgbotapi.NewKeyboardButton("Отменить"),
+		})
+		keyboard.OneTimeKeyboard = true
+		msg.ReplyMarkup = keyboard
+		chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+			h.ApproveRecordHandler(record, message, chatState)
+		})
+	}
+	_, _ = h.Send(msg, true)
 }

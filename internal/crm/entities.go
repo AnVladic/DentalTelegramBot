@@ -133,3 +133,9 @@ type ShortRecord struct {
 	BranchID           int            `json:"branchId"`
 	Total              int            `json:"total"`
 }
+
+type ChangeRecord struct {
+	ID      int64  `json:"mediline_record_id" description:"ID приема"`
+	Status  bool   `json:"status" description:"Статус записи"`
+	Message string `json:"message" description:"Сообщение"`
+}

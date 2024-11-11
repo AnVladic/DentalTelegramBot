@@ -84,6 +84,8 @@ func (r *Router) StartListening(stopChan chan struct{}) {
 						r.tgBotHandler.ChangeNameCallback(update.CallbackQuery, chatState)
 					case "approve":
 						r.tgBotHandler.RegisterCallback(update.CallbackQuery)
+					case "del_r":
+						r.tgBotHandler.ApproveDeleteRecord(update.CallbackQuery, chatState)
 					case "back":
 						r.tgBotHandler.BackCallback(update.CallbackQuery)
 					default:
@@ -105,12 +107,14 @@ func (r *Router) handleMessage(msg *tgbotapi.Message) {
 	switch msg.Command() {
 	case "start":
 		r.tgBotHandler.StartCommandHandler(msg, chatState)
-	case "register":
+	case "record":
 		r.tgBotHandler.RegisterCommandHandler(msg, chatState)
 	case "change_name":
 		r.tgBotHandler.ChangeNameHandler(msg, chatState, nil)
 	case "myrecords":
 		r.tgBotHandler.ShowRecordsListHandler(msg, chatState)
+	case "delete_record":
+		r.tgBotHandler.DeleteRecordHandler(msg, chatState)
 	case "cancel":
 		r.tgBotHandler.CancelCommandHandler(msg, chatState)
 	default:

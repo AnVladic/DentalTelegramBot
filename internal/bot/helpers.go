@@ -2,6 +2,7 @@ package bot
 
 import (
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -29,4 +30,14 @@ func DatetimeToDate(datetime time.Time) time.Time {
 func DatetimeToTime(datetime time.Time) time.Time {
 	return time.Date(0, 1, 1,
 		datetime.Hour(), datetime.Minute(), 0, 0, datetime.Location())
+}
+
+func IsMatchIgnoreCase(text string, phrases []string) bool {
+	text = strings.ToLower(text)
+	for _, phrase := range phrases {
+		if text == strings.ToLower(phrase) {
+			return true
+		}
+	}
+	return false
 }

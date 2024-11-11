@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -403,6 +404,17 @@ func (h *TelegramBotHandler) parseTelegramChoiceIntervalCallback(
 		return nil, err
 	}
 	return &telegramChoiceIntervalCallback, nil
+}
+
+func (h *TelegramBotHandler) parseTelegramRecordChangeCallback(
+	query *tgbotapi.CallbackQuery, log *logrus.Entry) (*TelegramRecordChangeCallback, error) {
+	var telegramRecordChangeCallback TelegramRecordChangeCallback
+	err := json.Unmarshal([]byte(query.Data), &telegramRecordChangeCallback)
+	if h.checkAndLogError(err, log, query.Message, "TelegramRecordChangeCallback Unmarshal error") {
+		log.Error(err)
+		return nil, err
+	}
+	return &telegramRecordChangeCallback, nil
 }
 
 func (h *TelegramBotHandler) parseTelegramBotDoctorCallbackData(
@@ -838,4 +850,60 @@ func (h *TelegramBotHandler) updateDentalProID(
 		return err
 	}
 	return nil
+}
+
+// Запрашивает у юзера номер телефона
+func (h *TelegramBotHandler) noAuthRequest(
+	successFunc func(message *tgbotapi.Message, chatState *TelegramChatState), chatState *TelegramChatState,
+	message *tgbotapi.Message) error {
+
+	ok, err := h.GetPhoneNumber(message, chatState)
+	if err != nil {
+		_ = fmt.Errorf("GetPhoneNumber error %w", err)
+		return err
+	}
+	if !ok {
+		chatState.UpdateChatState(func(message *tgbotapi.Message, lChatState *TelegramChatState) {
+			_ = h.noAuthRequest(successFunc, lChatState, message)
+		})
+		return nil
+	}
+	successFunc(message, chatState)
+	return nil
+}
+
+func (h *TelegramBotHandler) findUserAndCheckPhoneNumber(
+	successFunc func(message *tgbotapi.Message, chatState *TelegramChatState), chatState *TelegramChatState,
+	fromID int64,
+	message *tgbotapi.Message, log *logrus.Entry,
+) (*database.User, error) {
+	repository := database.UserRepository{DB: h.db}
+	user, err := repository.GetUserByTelegramID(fromID)
+	if errors.Is(err, sql.ErrNoRows) || user.Phone == nil || *user.Phone == "" {
+		h.RequestPhoneNumber(message)
+		chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+			_ = h.noAuthRequest(successFunc, chatState, message)
+		})
+		return nil, err
+	} else if h.checkAndLogError(err, log, message, "") {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (h *TelegramBotHandler) getDentalProIDByUser(
+	user *database.User, message *tgbotapi.Message, log *logrus.Entry,
+) (int64, error) {
+	if user.DentalProID == nil {
+		patient, _, err := h.getOrCreatePatient(*user.Name, *user.Lastname, *user.Phone, message, log)
+		if h.checkAndLogError(err, log, message, "") {
+			return 0, err
+		}
+		user.DentalProID = &patient.ExternalID
+		err = h.updateDentalProID(message.From.ID, patient.ExternalID, message, log)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return *user.DentalProID, nil
 }

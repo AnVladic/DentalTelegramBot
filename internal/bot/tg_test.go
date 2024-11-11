@@ -237,12 +237,22 @@ func TestRegisterHandle(t *testing.T) {
 				return tgbotapi.Update{Message: message}
 			},
 			expected: func() []tgbotapi.Chattable {
-				return []tgbotapi.Chattable{tgbotapi.NewMessage(chatID, "Привет! 👋 Добро пожаловать в нашу стоматологическую клинику 🦷✨ \n\nВот что я могу для вас сделать:\n- 🗓️ /register — Запись на приём к стоматологу\n- 🔄 /reschedule — Перенести запись\n- 🗑️ /delete_appointment — Удалить запись на приём\n- 📋 /myrecords — Получить информацию о предстоящих визитах\n- ✏️ /change_name — Изменить имя в системе\n- ❌ /cancel — Отменить последнее действие и вернуться к началу\n\nДля записи на приём просто отправьте команду /register или выберите нужный пункт в меню.")}
+				return []tgbotapi.Chattable{tgbotapi.NewMessage(chatID, `Привет! 👋 Добро пожаловать в нашу стоматологическую клинику 🦷✨ 
+
+Вот что я могу для вас сделать:
+- 🗓️ /record — Запись на приём к стоматологу
+- 🔄 /move_record — Перенести запись
+- 🗑️ /delete_record — Удалить запись на приём
+- 📋 /myrecords — Получить информацию о предстоящих визитах
+- ✏️ /change_name — Изменить имя в системе
+- ❌ /cancel — Отменить последнее действие и вернуться к началу
+
+Для записи на приём просто отправьте команду /register или выберите нужный пункт в меню.`)}
 			},
 		},
 		{ // 5
 			userMessage: func() tgbotapi.Update {
-				message := createTestMessage(chatID, 6, "/register")
+				message := createTestMessage(chatID, 6, "/record")
 				message.Chat = createChat(chatID)
 				message.Entities = []tgbotapi.MessageEntity{
 					{Type: "bot_command", Length: len([]rune(message.Text))},
@@ -471,8 +481,8 @@ func TestRegisterHandle(t *testing.T) {
 Вы записаны как: <b><i>Ivanov Ivan</i></b>
 
 Воспользуйтесь командами:
-	/reschedule 🔄 — если хотите перенести запись
-	/delete_appointment ❌ — если хотите удалить запись
+	/move_record 🔄 — если хотите перенести запись
+	/delete_record ❌ — если хотите удалить запись
 
 Ждем вас! 😊`
 				exceptedMsg := tgbotapi.NewEditMessageText(chatID, 0, text)
@@ -691,8 +701,109 @@ func TestRegisterHandle(t *testing.T) {
 				return []tgbotapi.Chattable{msg}
 			},
 		},
+		{ // 23
+			userMessage: func() tgbotapi.Update {
+				message := createTestMessage(chatID, 23, "/delete_record")
+				message.Entities = []tgbotapi.MessageEntity{
+					{Type: "bot_command", Length: len([]rune(message.Text))},
+				}
+				return tgbotapi.Update{Message: message}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := "Выберите запись, которую хотите удалить ❌"
+
+				msg := tgbotapi.NewMessage(chatID, text)
+				msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+					[]tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(
+						"Запись №1: 2024-11-09 18:00 Подаева С.Е.",
+						`{"command":"del_r","r":1}`),
+					},
+					[]tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(
+						"Запись №2: 2024-12-11 12:40 Новикова Н.В.",
+						`{"command":"del_r","r":2}`),
+					},
+				)
+				return []tgbotapi.Chattable{msg}
+			},
+		},
+		{ // 24
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"del_r","r":1}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := `Вы хотите удалить запись — 2024-11-09 18:00, Подаева С.Е. 🗓️.
+
+Подтвердить удаление? ✅`
+
+				msg := tgbotapi.NewMessage(chatID, text)
+				keyboard := tgbotapi.NewReplyKeyboard([]tgbotapi.KeyboardButton{
+					tgbotapi.NewKeyboardButton("✅ Подтвердить"),
+					tgbotapi.NewKeyboardButton("Отменить"),
+				})
+				keyboard.OneTimeKeyboard = true
+				msg.ReplyMarkup = keyboard
+				return []tgbotapi.Chattable{msg}
+			},
+		},
+		{ // 25
+			userMessage: func() tgbotapi.Update {
+				message := createTestMessage(chatID, 25, "нет")
+				return tgbotapi.Update{Message: message}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := `Удаление записи — 2024-11-09 18:00, Подаева С.Е., отменено ❌`
+
+				msg := tgbotapi.NewMessage(chatID, text)
+				return []tgbotapi.Chattable{msg}
+			},
+		},
+		{ // 26
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"del_r","r":2}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := `Вы хотите удалить запись — 2024-12-11 12:40, Новикова Н.В. 🗓️.
+
+Подтвердить удаление? ✅`
+
+				msg := tgbotapi.NewMessage(chatID, text)
+				keyboard := tgbotapi.NewReplyKeyboard([]tgbotapi.KeyboardButton{
+					tgbotapi.NewKeyboardButton("✅ Подтвердить"),
+					tgbotapi.NewKeyboardButton("Отменить"),
+				})
+				keyboard.OneTimeKeyboard = true
+				msg.ReplyMarkup = keyboard
+				return []tgbotapi.Chattable{msg}
+			},
+		},
+		{ // 27
+			userMessage: func() tgbotapi.Update {
+				message := createTestMessage(chatID, 25, "да")
+				return tgbotapi.Update{Message: message}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := `Запись — 2024-12-11 12:40, Новикова Н.В., успешно удалена ✅`
+
+				msg := tgbotapi.NewMessage(chatID, text)
+				return []tgbotapi.Chattable{msg}
+			},
+		},
+		{ // 28
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"del_r","r":123325346}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := `К сожалению, такой записи не найдено 😕`
+				msg := tgbotapi.NewMessage(chatID, text)
+				return []tgbotapi.Chattable{msg}
+			},
+		},
 	}
 	checkCases(t, router, mockBot, chatID, testCases)
+	_ = clearAllTables(db)
 	stopChan <- struct{}{}
 }
 

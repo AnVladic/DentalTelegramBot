@@ -48,6 +48,11 @@ type TelegramChoiceIntervalCallback struct {
 	StartTime string `json:"s"`
 }
 
+type TelegramRecordChangeCallback struct {
+	CallbackData
+	RecordID int64 `json:"r"`
+}
+
 func (h *TelegramBotHandler) ShowCalendarCallback(query *tgbotapi.CallbackQuery) {
 	log := logrus.WithFields(logrus.Fields{
 		"module": "bot.callbacks",
@@ -509,4 +514,58 @@ func (h *TelegramBotHandler) ChangeNameCallback(
 	chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
 		h.ChangeFirstNameHandler(message, chatState, &handler)
 	})
+}
+
+func (h *TelegramBotHandler) ApproveDeleteRecord(
+	query *tgbotapi.CallbackQuery, chatState *TelegramChatState) {
+	log := logrus.WithFields(logrus.Fields{
+		"module": "callback",
+		"func":   "ApproveDeleteRecord",
+	})
+	recordData, err := h.parseTelegramRecordChangeCallback(query, log)
+	if err != nil {
+		return
+	}
+
+	user, err := h.findUserAndCheckPhoneNumber(
+		func(message *tgbotapi.Message, chatState *TelegramChatState) {
+			h.ApproveDeleteRecord(query, chatState)
+		}, chatState, query.From.ID, query.Message, log,
+	)
+	if err != nil {
+		return
+	}
+
+	_, err = h.getDentalProIDByUser(user, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	records, err := h.getCRMRecordsList(*user.DentalProID, query.Message, log)
+	if err != nil {
+		return
+	}
+
+	for _, record := range records {
+		if record.ID == recordData.RecordID {
+			datetime := time.Time(record.DateStart)
+			text := fmt.Sprintf(h.userTexts.ApproveDeleteRecord,
+				datetime.Format("2006-01-02 15:04"), record.DoctorName)
+			msg := tgbotapi.NewMessage(query.Message.Chat.ID, text)
+			keyboard := tgbotapi.NewReplyKeyboard([]tgbotapi.KeyboardButton{
+				tgbotapi.NewKeyboardButton("✅ Подтвердить"),
+				tgbotapi.NewKeyboardButton("Отменить"),
+			})
+			keyboard.OneTimeKeyboard = true
+			msg.ReplyMarkup = keyboard
+			_, _ = h.Send(msg, true)
+			chatState.UpdateChatState(func(message *tgbotapi.Message, chatState *TelegramChatState) {
+				h.ApproveRecordHandler(record, message, chatState)
+			})
+			return
+		}
+	}
+
+	msg := tgbotapi.NewMessage(query.Message.Chat.ID, h.userTexts.HasNoDeleteRecord)
+	_, _ = h.Send(msg, true)
 }

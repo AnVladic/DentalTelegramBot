@@ -2,7 +2,6 @@ package crm
 
 import (
 	"fmt"
-	"math/rand"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -22,11 +21,7 @@ type DentalProClientTest struct {
 	Patients         map[int64]Patient
 	AllFreeIntervals []DayInterval
 	Records          map[int64][]Record
-}
-
-type RequestError struct {
-	Code    int
-	Message string
+	lastRecordID     int64
 }
 
 func (e *RequestError) Error() string {
@@ -181,19 +176,6 @@ func (c *DentalProClientTest) PatientByPhone(phone string) (Patient, error) {
 	}
 }
 
-func parseDate(dateStr, layout string) time.Time {
-	date, _ := time.Parse(layout, dateStr)
-	return date
-}
-
-func parseTime(timeStr, layout string) *time.Time {
-	if timeStr == "" {
-		return nil
-	}
-	t, _ := time.Parse(layout, timeStr)
-	return &t
-}
-
 func (c *DentalProClientTest) FreeIntervals(
 	startDate, endDate time.Time,
 	departmentID, doctorID, branchID int64, duration int,
@@ -274,8 +256,10 @@ func (c *DentalProClientTest) RecordCreate(
 		records = make([]Record, 0)
 	}
 
+	c.lastRecordID += 1
+
 	record := Record{
-		ID:        rand.Int63(),
+		ID:        c.lastRecordID,
 		TimeBegin: DateTimeYMDHMS(timeStart),
 		TimeEnd:   DateTimeYMDHMS(timeEnd),
 		Date:      DateYMD(date),
@@ -325,4 +309,22 @@ func (c *DentalProClientTest) PatientRecords(clientID int64) ([]ShortRecord, err
 		}
 	}
 	return shortRecords, nil
+}
+
+func (c *DentalProClientTest) DeleteRecord(recordID int64) (ChangeRecord, error) {
+	// Удаление записи из расписания
+	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=records/deleteMedilineRecord&target=modal
+
+	for i, records := range c.Records {
+		for j, record := range records {
+			if record.ID == recordID {
+				c.Records[i] = append(c.Records[i][:j], c.Records[i][j+1:]...)
+				return ChangeRecord{
+					ID:     record.ID,
+					Status: true,
+				}, nil
+			}
+		}
+	}
+	return ChangeRecord{Status: false}, &RequestError{Message: "Record not found", Code: http.StatusNotFound}
 }
