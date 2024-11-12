@@ -4,35 +4,36 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/AnVladic/DentalTelegramBot/internal/crm"
+	"github.com/AnVladic/DentalTelegramBot/internal/database"
+	"github.com/AnVladic/DentalTelegramBot/pkg"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
-	"main/internal/crm"
-	"main/internal/database"
 	"net/http"
 	"strings"
 	"time"
 )
 
 type TelegramBotHandler struct {
-	bot             ITGBotAPI
+	bot             TelegramBotAPIWrapper
 	userTexts       UserTexts
 	dentalProClient crm.IDentalProClient
 	db              *sql.DB
 	branchID        int64
 	location        *time.Location
-	nowTime         INow
+	nowTime         TimeProvider
 }
 
 type HandlerMethod func(message *tgbotapi.Message, chatState *TelegramChatState)
 
 func NewTelegramBotHandler(
-	bot ITGBotAPI,
+	bot TelegramBotAPIWrapper,
 	userTexts UserTexts,
 	dentalProClient crm.IDentalProClient,
 	db *sql.DB,
 	branchID int64,
 	location *time.Location,
-	nowTime INow,
+	nowTime TimeProvider,
 ) *TelegramBotHandler {
 	handler := &TelegramBotHandler{
 		bot: bot, userTexts: userTexts, dentalProClient: dentalProClient, db: db, branchID: branchID,
@@ -330,13 +331,13 @@ func (h *TelegramBotHandler) ApproveRecordHandler(
 
 	datetime := time.Time(record.DateStart)
 
-	if IsMatchIgnoreCase(message.Text, h.userTexts.NegativeAnswers) {
+	if pkg.IsMatchIgnoreCase(message.Text, h.userTexts.NegativeAnswers) {
 		text := fmt.Sprintf(h.userTexts.CancelDeleteRecord,
 			datetime.Format("2006-01-02 15:04"),
 			record.DoctorName,
 		)
 		msg = tgbotapi.NewMessage(message.Chat.ID, text)
-	} else if IsMatchIgnoreCase(message.Text, h.userTexts.PositiveAnswers) {
+	} else if pkg.IsMatchIgnoreCase(message.Text, h.userTexts.PositiveAnswers) {
 		response, err := h.dentalProClient.DeleteRecord(record.ID)
 		if !response.Status {
 			err = &crm.RequestError{

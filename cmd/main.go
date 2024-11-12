@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"main/internal/bot"
-	"main/internal/crm"
-	"main/pkg"
+	"github.com/AnVladic/DentalTelegramBot/internal/bot"
+	"github.com/AnVladic/DentalTelegramBot/internal/crm"
+	"github.com/AnVladic/DentalTelegramBot/pkg"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -36,14 +39,14 @@ func OpenDB() *sql.DB {
 	return db
 }
 
-func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.DB) {
+func InitTelegramBot(stopCtx context.Context, dentalProClient crm.IDentalProClient, db *sql.DB, debug bool) {
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if botToken == "" {
 		logrus.Panic("TELEGRAM_BOT_TOKEN environment variable not set")
 	}
 
 	tgBot, err := tgbotapi.NewBotAPI(botToken)
-	rgBotAPI := &bot.RealBot{BotAPI: tgBot}
+	rgBotAPI := &bot.TelegramBotAPI{BotAPI: tgBot}
 	if err != nil {
 		logrus.Panic(err)
 	}
@@ -69,15 +72,24 @@ func InitTelegramBot(debug bool, dentalProClient crm.IDentalProClient, db *sql.D
 	}
 
 	telegramBotHandler := bot.NewTelegramBotHandler(
-		rgBotAPI, *userTexts, dentalProClient, db, branchID, location, bot.RealNow{},
+		rgBotAPI, *userTexts, dentalProClient, db, branchID, location, bot.RealTimeProvider{},
 	)
 	router := bot.NewRouter(tgBot, telegramBotHandler, false)
+	runServer(stopCtx, router)
+}
 
+func runServer(stopCtx context.Context, router *bot.Router) {
 	go bot.CleanupUserStates(router.ChatStatesMu, router.TgChatStates)
+	go router.StartListening()
 	fmt.Println("Server is ready")
+	<-stopCtx.Done()
 
-	stopChan := make(chan struct{})
-	router.StartListening(stopChan)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := router.Shutdown(shutdownCtx); err != nil {
+		logrus.Errorf("shutdown: %s", err)
+		return
+	}
 }
 
 func main() {
@@ -91,6 +103,9 @@ func main() {
 		}
 	}(db)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	DEBUG := os.Getenv("DEBUG") == "true"
 	TEST := os.Getenv("TEST") != "false"
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
@@ -100,5 +115,5 @@ func main() {
 
 	dentalProClient := crm.NewDentalProClient(
 		os.Getenv("DENTAL_PRO_TOKEN"), os.Getenv("DENTAL_PRO_SECRET"), TEST, "internal/crm")
-	InitTelegramBot(DEBUG, dentalProClient, db)
+	InitTelegramBot(ctx, dentalProClient, db, DEBUG)
 }

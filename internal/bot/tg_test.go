@@ -1,12 +1,13 @@
 package bot
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"github.com/AnVladic/DentalTelegramBot/internal/crm"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"log"
-	"main/internal/crm"
 	"os"
 	"testing"
 	"time"
@@ -171,8 +172,7 @@ func TestRegisterHandle(t *testing.T) {
 		fmt.Println(err)
 	}
 
-	stopChan := make(chan struct{})
-	go router.StartListening(stopChan)
+	go router.StartListening()
 
 	testCases := []TestCase{
 		{ // 1
@@ -802,7 +802,11 @@ func TestRegisterHandle(t *testing.T) {
 	}
 	checkCases(t, router, mockBot, chatID, testCases)
 	_ = clearAllTables(db)
-	stopChan <- struct{}{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = router.Shutdown(ctx); err != nil {
+		_ = fmt.Errorf("shutdown %w", err)
+	}
 }
 
 func TestChangeName(t *testing.T) {
@@ -817,8 +821,7 @@ func TestChangeName(t *testing.T) {
 		fmt.Println(err)
 	}
 
-	stopChan := make(chan struct{})
-	go router.StartListening(stopChan)
+	go router.StartListening()
 
 	testCases := []TestCase{
 		{ // 1
@@ -904,5 +907,9 @@ func TestChangeName(t *testing.T) {
 		},
 	}
 	checkCases(t, router, mockBot, chatID, testCases)
-	stopChan <- struct{}{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = router.Shutdown(ctx); err != nil {
+		_ = fmt.Errorf("shutdown %w", err)
+	}
 }

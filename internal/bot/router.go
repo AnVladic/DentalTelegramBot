@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"encoding/json"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
@@ -9,23 +10,27 @@ import (
 )
 
 type Router struct {
-	bot          ITGBotAPI
+	bot          TelegramBotAPIWrapper
 	tgBotHandler *TelegramBotHandler
 	TgChatStates *map[int64]*TelegramChatState
 	ChatStatesMu *sync.Mutex
 	TestWG       *sync.WaitGroup
+	updateWG     *sync.WaitGroup
+	stopChan     chan struct{}
 }
 
 type CallbackData struct {
 	Command string `json:"command"`
 }
 
-func NewRouter(bot ITGBotAPI, tgBotHandler *TelegramBotHandler, test bool) *Router {
+func NewRouter(bot TelegramBotAPIWrapper, tgBotHandler *TelegramBotHandler, test bool) *Router {
 	router := &Router{
 		bot:          bot,
 		tgBotHandler: tgBotHandler,
 		TgChatStates: &map[int64]*TelegramChatState{},
 		ChatStatesMu: &sync.Mutex{},
+		updateWG:     new(sync.WaitGroup),
+		stopChan:     make(chan struct{}, 1),
 	}
 	if test {
 		router.TestWG = new(sync.WaitGroup)
@@ -44,7 +49,7 @@ func (r *Router) GetOrCreateChatState(chatID int64) *TelegramChatState {
 	return chatState
 }
 
-func (r *Router) StartListening(stopChan chan struct{}) {
+func (r *Router) StartListening() {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -53,7 +58,8 @@ func (r *Router) StartListening(stopChan chan struct{}) {
 	for {
 		select {
 		case update := <-updates:
-			go func() {
+			r.updateWG.Add(1)
+			go func(update tgbotapi.Update) {
 				if r.TestWG != nil {
 					defer r.TestWG.Done()
 				}
@@ -62,42 +68,63 @@ func (r *Router) StartListening(stopChan chan struct{}) {
 					r.handleMessage(update.Message)
 				}
 				if update.CallbackQuery != nil {
-					var data CallbackData
-					chatState := r.GetOrCreateChatState(update.CallbackQuery.Message.Chat.ID)
-					callbackData := []byte(update.CallbackQuery.Data)
-					err := json.Unmarshal(callbackData, &data)
-					if err != nil {
-						logrus.Error(err)
-					}
-					switch data.Command {
-					case "switch_timesheet_month":
-						r.tgBotHandler.SwitchTimesheetMonthCallback(update.CallbackQuery)
-					case "select_doctor":
-						r.tgBotHandler.ShowAppointments(update.CallbackQuery)
-					case "day":
-						r.tgBotHandler.ChoiceDayCallback(update.CallbackQuery)
-					case "appointment":
-						r.tgBotHandler.ShowCalendarCallback(update.CallbackQuery)
-					case "interval":
-						r.tgBotHandler.RegisterApproveCallback(update.CallbackQuery, chatState)
-					case "change_name":
-						r.tgBotHandler.ChangeNameCallback(update.CallbackQuery, chatState)
-					case "approve":
-						r.tgBotHandler.RegisterCallback(update.CallbackQuery)
-					case "del_r":
-						r.tgBotHandler.ApproveDeleteRecord(update.CallbackQuery, chatState)
-					case "back":
-						r.tgBotHandler.BackCallback(update.CallbackQuery)
-					default:
-						logrus.Errorf("unknown command \"%s\"", data.Command)
-					}
+					r.callbackMessage(update.CallbackQuery)
 				}
-			}()
+				r.updateWG.Done()
+			}(update)
 
-		case <-stopChan:
+		case <-r.stopChan:
 			logrus.Println("Stop Listening")
 			return
 		}
+	}
+}
+
+func (r *Router) Shutdown(ctx context.Context) error {
+	r.stopChan <- struct{}{}
+	done := make(chan struct{})
+	go func() {
+		r.updateWG.Wait()
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+		return nil
+	}
+}
+
+func (r *Router) callbackMessage(callbackQuery *tgbotapi.CallbackQuery) {
+	var data CallbackData
+	chatState := r.GetOrCreateChatState(callbackQuery.Message.Chat.ID)
+	callbackData := []byte(callbackQuery.Data)
+	err := json.Unmarshal(callbackData, &data)
+	if err != nil {
+		logrus.Error(err)
+	}
+	switch data.Command {
+	case "switch_timesheet_month":
+		r.tgBotHandler.SwitchTimesheetMonthCallback(callbackQuery)
+	case "select_doctor":
+		r.tgBotHandler.ShowAppointments(callbackQuery)
+	case "day":
+		r.tgBotHandler.ChoiceDayCallback(callbackQuery)
+	case "appointment":
+		r.tgBotHandler.ShowCalendarCallback(callbackQuery)
+	case "interval":
+		r.tgBotHandler.RegisterApproveCallback(callbackQuery, chatState)
+	case "change_name":
+		r.tgBotHandler.ChangeNameCallback(callbackQuery, chatState)
+	case "approve":
+		r.tgBotHandler.RegisterCallback(callbackQuery)
+	case "del_r":
+		r.tgBotHandler.ApproveDeleteRecord(callbackQuery, chatState)
+	case "back":
+		r.tgBotHandler.BackCallback(callbackQuery)
+	default:
+		logrus.Errorf("unknown command \"%s\"", data.Command)
 	}
 }
 
