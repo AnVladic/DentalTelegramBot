@@ -139,3 +139,36 @@ type ChangeRecord struct {
 	Status  bool   `json:"status" description:"Статус записи"`
 	Message string `json:"message" description:"Сообщение"`
 }
+
+type User struct {
+	IDClient               string  `json:"id_client"`
+	Key                    string  `json:"key"`
+	Value                  string  `json:"value"`
+	DisplayName            string  `json:"display_name"`
+	Name                   string  `json:"name"`
+	Surname                string  `json:"surname"`
+	SecondName             string  `json:"second_name"`
+	Nickname               *string `json:"nickname,omitempty"`
+	IDFilePhoto            *string `json:"id_file_photo,omitempty"`
+	Birthday               string  `json:"birthday"`
+	Country                *string `json:"country,omitempty"`
+	State                  *string `json:"state,omitempty"`
+	City                   *string `json:"city,omitempty"`
+	Postcode               *string `json:"postcode,omitempty"`
+	Address                *string `json:"address,omitempty"`
+	Street                 *string `json:"street,omitempty"`
+	Building               string  `json:"building"`
+	Apt                    string  `json:"apt"`
+	IsDeleted              *bool   `json:"is_deleted,omitempty"`
+	Sex                    string  `json:"sex"`
+	Color                  *string `json:"color,omitempty"`
+	ParentID               *string `json:"parent_id,omitempty"`
+	DateCreate             string  `json:"date_create"`
+	INN                    *string `json:"inn,omitempty"`
+	DateOfFirstAppointment string  `json:"date_of_first_appointment"`
+	DateOfLastAppointment  string  `json:"date_of_last_appointment"`
+	Note                   string  `json:"note"`
+	ContactInformation     struct {
+		MobilePhone string `json:"mobile_phone"`
+	} `json:"contact_information"`
+}

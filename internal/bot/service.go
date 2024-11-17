@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/AnVladic/DentalTelegramBot/internal/crm"
+	"github.com/AnVladic/DentalTelegramBot/internal/database"
+	"github.com/AnVladic/DentalTelegramBot/pkg"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
-	"main/internal/crm"
-	"main/internal/database"
 	"net/http"
 	"sort"
 	"strconv"
@@ -231,7 +232,7 @@ func (h *TelegramBotHandler) ChangeToDoctorsMarkup(message *tgbotapi.Message) {
 		}
 
 		title := fmt.Sprintf(
-			"%s - %s", doctor.FIO, strings.Join(GetMapValues(doctor.Departments), ", "))
+			"%s - %s", doctor.FIO, strings.Join(pkg.GetMapValues(doctor.Departments), ", "))
 		btn := tgbotapi.NewInlineKeyboardButtonData(title, string(bytesData))
 		row := []tgbotapi.InlineKeyboardButton{btn}
 		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)

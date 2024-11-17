@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -87,4 +88,10 @@ func mergeToDatetime(date time.Time, time_ time.Time) time.Time {
 		date.Year(), date.Month(), date.Day(),
 		time_.Hour(), time_.Minute(), time_.Second(), 0, time_.Location(),
 	)
+}
+
+func normalizePhoneNumber(phone string) string {
+	re := regexp.MustCompile("[^0-9]")
+	phone = re.ReplaceAllString(phone, "")
+	return phone
 }

@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/AnVladic/DentalTelegramBot/internal/database"
+	"github.com/AnVladic/DentalTelegramBot/pkg"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
-	"main/internal/database"
 	"time"
 )
 
@@ -437,8 +438,8 @@ func (h *TelegramBotHandler) RegisterCallback(query *tgbotapi.CallbackQuery) {
 	intervals, err := h.getCRMFreeIntervals(
 		register.DoctorID, *register.Datetime, appointment.Time, query.Message, log,
 	)
-	chooseTime := DatetimeToTime(*register.Datetime)
-	chooseDate := DatetimeToDate(*register.Datetime)
+	chooseTime := pkg.DatetimeToTime(*register.Datetime)
+	chooseDate := pkg.DatetimeToDate(*register.Datetime)
 	if err != nil {
 		return
 	}

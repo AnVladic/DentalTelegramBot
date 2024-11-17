@@ -1,8 +1,8 @@
 package bot
 
 import (
-	"main/internal/crm"
-	"main/internal/database"
+	"github.com/AnVladic/DentalTelegramBot/internal/crm"
+	"github.com/AnVladic/DentalTelegramBot/internal/database"
 )
 
 type SelfUser struct {

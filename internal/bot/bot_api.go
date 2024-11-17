@@ -5,22 +5,22 @@ import (
 	"time"
 )
 
-type ITGBotAPI interface {
+type TelegramBotAPIWrapper interface {
 	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
 	GetUpdatesChan(config tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel
 }
 
-type INow interface {
+type TimeProvider interface {
 	Now() time.Time
 }
 
-type RealBot struct {
+type TelegramBotAPI struct {
 	*tgbotapi.BotAPI
 }
 
-type RealNow struct {
+type RealTimeProvider struct {
 }
 
-func (r RealNow) Now() time.Time {
+func (r RealTimeProvider) Now() time.Time {
 	return time.Now()
 }
