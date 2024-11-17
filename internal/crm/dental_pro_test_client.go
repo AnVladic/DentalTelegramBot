@@ -24,10 +24,6 @@ type DentalProClientTest struct {
 	lastRecordID     int64
 }
 
-func (e *RequestError) Error() string {
-	return fmt.Sprintf("error %d: %s", e.Code, e.Message)
-}
-
 func GetTestFreeIntervals(path string) []DayInterval {
 	response := struct {
 		BaseResponse
@@ -171,8 +167,8 @@ func (c *DentalProClientTest) PatientByPhone(phone string) (Patient, error) {
 		}
 	}
 	return Patient{}, &RequestError{
-		Code:    http.StatusNotFound,
-		Message: fmt.Sprintf("patient with phone %s not found", phone),
+		Code: http.StatusNotFound,
+		Err:  fmt.Errorf("patient with phone %s not found", phone),
 	}
 }
 
@@ -231,8 +227,8 @@ func (c *DentalProClientTest) EditPatient(patient Patient) (EditPatientResponse,
 	// https://olimp.crm3.dental-pro.online/apisettings/api/index#/apisettings/api/detail?method=records/editClient&target=modal
 	editPatient, ok := c.Patients[patient.ExternalID]
 	if !ok {
-		msg := fmt.Sprintf("patient with externalID %d not found", patient.ExternalID)
-		return EditPatientResponse{Status: false, Message: msg}, &RequestError{
+		msg := fmt.Errorf("patient with externalID %d not found", patient.ExternalID)
+		return EditPatientResponse{Status: false, Message: msg.Error()}, &RequestError{
 			http.StatusNotFound,
 			msg,
 		}
@@ -326,5 +322,6 @@ func (c *DentalProClientTest) DeleteRecord(recordID int64) (ChangeRecord, error)
 			}
 		}
 	}
-	return ChangeRecord{Status: false}, &RequestError{Message: "Record not found", Code: http.StatusNotFound}
+	return ChangeRecord{Status: false}, &RequestError{
+		Err: fmt.Errorf("record not found"), Code: http.StatusNotFound}
 }

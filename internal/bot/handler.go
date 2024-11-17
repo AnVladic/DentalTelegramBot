@@ -58,7 +58,10 @@ func (h *TelegramBotHandler) StartCommandHandler(message *tgbotapi.Message, chat
 		_, _ = h.Send(response, false)
 		return
 	}
+	_, _ = h.Send(response, true)
 
+	time.Sleep(3 * time.Second)
+	response = tgbotapi.NewMessage(message.Chat.ID, h.userTexts.ExistWelcome)
 	_, _ = h.Send(response, true)
 }
 
@@ -339,10 +342,13 @@ func (h *TelegramBotHandler) ApproveRecordHandler(
 		msg = tgbotapi.NewMessage(message.Chat.ID, text)
 	} else if pkg.IsMatchIgnoreCase(message.Text, h.userTexts.PositiveAnswers) {
 		response, err := h.dentalProClient.DeleteRecord(record.ID)
+		if h.checkAndLogError(err, log, message, "") {
+			return
+		}
 		if !response.Status {
 			err = &crm.RequestError{
-				Code:    http.StatusNotFound,
-				Message: response.Message,
+				Code: http.StatusNotFound,
+				Err:  fmt.Errorf(response.Message),
 			}
 		}
 		if h.checkAndLogError(err, log, message, "") {

@@ -237,7 +237,7 @@ func TestRegisterHandle(t *testing.T) {
 				return tgbotapi.Update{Message: message}
 			},
 			expected: func() []tgbotapi.Chattable {
-				return []tgbotapi.Chattable{tgbotapi.NewMessage(chatID, `Привет! 👋 Добро пожаловать в нашу стоматологическую клинику 🦷✨ 
+				return []tgbotapi.Chattable{tgbotapi.NewMessage(chatID, `Привет! 👋 Добро пожаловать в нашу стоматологическую клинику в "Олимп" Софрино 🦷✨ 
 
 Вот что я могу для вас сделать:
 - 🗓️ /record — Запись на приём к стоматологу
@@ -246,7 +246,10 @@ func TestRegisterHandle(t *testing.T) {
 - ✏️ /change_name — Изменить имя в системе
 - ❌ /cancel — Отменить последнее действие и вернуться к началу
 
-Для записи на приём просто отправьте команду /record или выберите нужный пункт в меню.`)}
+Для записи на приём просто отправьте команду /record или выберите нужный пункт в меню.`),
+					tgbotapi.NewMessage(chatID, `Если вы уже наш пациент, пожалуйста, напишите своё ФИО или номер телефона, указанный при первом визите к нам ☎️.
+
+Чтобы изменить имя, воспользуйтесь командой /change_name`)}
 			},
 		},
 		{ // 5
@@ -401,7 +404,7 @@ func TestRegisterHandle(t *testing.T) {
 				return []tgbotapi.Chattable{exceptedMsg}
 			},
 		},
-		{ // 9
+		{ // 10
 			userMessage: func() tgbotapi.Update {
 				callbackQuery := createTestQuery(chatID, 0, `{"command":"day","dt":"2024.11.9","s":0}`)
 				return tgbotapi.Update{CallbackQuery: callbackQuery}
@@ -420,7 +423,7 @@ func TestRegisterHandle(t *testing.T) {
 				return []tgbotapi.Chattable{exceptedMsg}
 			},
 		},
-		{ // 10
+		{ // 11
 			userMessage: func() tgbotapi.Update {
 				callbackQuery := createTestQuery(chatID, 0, `{"command":"interval","s":"16:00"}`)
 				return tgbotapi.Update{CallbackQuery: callbackQuery}
