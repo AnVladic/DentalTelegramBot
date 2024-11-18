@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/AnVladic/DentalTelegramBot/internal/crm"
 	"github.com/AnVladic/DentalTelegramBot/internal/database"
 	"github.com/AnVladic/DentalTelegramBot/pkg"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
+	"sort"
 	"time"
 )
 
@@ -185,17 +187,8 @@ func (h *TelegramBotHandler) ShowAppointments(query *tgbotapi.CallbackQuery) {
 	}
 
 	if user.DentalProID != nil {
-		record, err := h.findRecordByPatientAndDoctor(
-			callbackData.DoctorID, *user.DentalProID, query.Message, log)
-		if h.checkAndLogError(err, log, query.Message, "PatientRecords %s", err) {
-			return
-		}
-		if record != nil {
-			keyboard := tgbotapi.NewInlineKeyboardMarkup()
-			edit := tgbotapi.NewEditMessageTextAndMarkup(
-				query.Message.Chat.ID, query.Message.MessageID, h.userTexts.HasSameRecord,
-				h.AddBackButton(keyboard, "doctors"))
-			_, _ = h.Edit(edit, true)
+		err := h.checkAndSendExistRecord(*user.DentalProID, callbackData.DoctorID, query.Message, log)
+		if err != nil {
 			return
 		}
 	}
@@ -429,6 +422,11 @@ func (h *TelegramBotHandler) RegisterCallback(query *tgbotapi.CallbackQuery) {
 		return
 	}
 
+	err = h.checkAndSendExistRecord(dentalProUser.ExternalID, crmDoctor.ID, query.Message, log)
+	if err != nil {
+		return
+	}
+
 	appointment, err := h.getAppointment(
 		user, register.DoctorID, register.AppointmentID, "", log, query.Message)
 	if err != nil {
@@ -569,4 +567,23 @@ func (h *TelegramBotHandler) ApproveDeleteRecord(
 
 	msg := tgbotapi.NewMessage(query.Message.Chat.ID, h.userTexts.HasNoDeleteRecord)
 	_, _ = h.Send(msg, true)
+}
+
+func (h *TelegramBotHandler) sortRecords(records []crm.ShortRecord) {
+	now := h.nowTime.Now().Unix()
+	sort.Slice(records, func(i, j int) bool {
+		afterNowI := records[i].DateStartTimestamp >= now
+		afterNowJ := records[j].DateStartTimestamp >= now
+
+		if afterNowI && !afterNowJ {
+			return true
+		}
+		if !afterNowI && afterNowJ {
+			return false
+		}
+		if afterNowI {
+			return records[i].DateStartTimestamp < records[j].DateStartTimestamp
+		}
+		return records[i].DateStartTimestamp > records[j].DateStartTimestamp
+	})
 }

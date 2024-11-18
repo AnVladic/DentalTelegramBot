@@ -96,7 +96,7 @@ func GetTestPatients() map[int64]Patient {
 }
 
 func NewDentalProClientTest(token, path, secretKey string) *DentalProClientTest {
-	return &DentalProClientTest{
+	client := &DentalProClientTest{
 		Token:            token,
 		SecretKey:        secretKey,
 		Doctors:          GetTestDoctors(path),
@@ -106,6 +106,7 @@ func NewDentalProClientTest(token, path, secretKey string) *DentalProClientTest 
 		Records:          map[int64][]Record{},
 		mu:               &sync.Mutex{},
 	}
+	return client
 }
 
 func (c *DentalProClientTest) DoctorsList() ([]Doctor, error) {
@@ -256,8 +257,8 @@ func (c *DentalProClientTest) RecordCreate(
 
 	record := Record{
 		ID:        c.lastRecordID,
-		TimeBegin: DateTimeYMDHMS(timeStart),
-		TimeEnd:   DateTimeYMDHMS(timeEnd),
+		TimeBegin: TimeHMS(timeStart),
+		TimeEnd:   TimeHMS(timeEnd),
 		Date:      DateYMD(date),
 		ClientID:  clientID,
 		DoctorID:  doctorID,

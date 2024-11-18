@@ -96,8 +96,8 @@ type EditPatientResponse struct {
 type Record struct {
 	ID                  int64          `json:"id"`
 	Reason              string         `json:"reason"`
-	TimeBegin           DateTimeYMDHMS `json:"timeBegin"`
-	TimeEnd             DateTimeYMDHMS `json:"timeEnd"`
+	TimeBegin           TimeHMS        `json:"timeBegin"`
+	TimeEnd             TimeHMS        `json:"timeEnd"`
 	ChairID             int64          `json:"chairId"`
 	ClientID            int64          `json:"clientId"`
 	Color               string         `json:"color"`

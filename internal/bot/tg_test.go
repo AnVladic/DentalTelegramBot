@@ -247,13 +247,23 @@ func TestRegisterHandle(t *testing.T) {
 - ❌ /cancel — Отменить последнее действие и вернуться к началу
 
 Для записи на приём просто отправьте команду /record или выберите нужный пункт в меню.`),
-					tgbotapi.NewMessage(chatID, `Если вы уже наш пациент, пожалуйста, напишите своё ФИО или номер телефона, указанный при первом визите к нам ☎️.
-
-Чтобы изменить имя, воспользуйтесь командой /change_name`)}
+					tgbotapi.NewMessage(chatID, `Во время использования бота мы можем запросить ваш номер телефона ☎️.
+Если он совпадает с номером, который вы указывали при первом визите, все данные будут синхронизированы автоматически.`)}
 			},
 		},
 		{ // 5
 			userMessage: func() tgbotapi.Update {
+				// Добавляем старую запись с истекшей датой
+				_, _ = router.tgBotHandler.dentalProClient.RecordCreate(
+					time.Date(2024, 11, 9, 0, 0, 0, 0, time.UTC),
+					time.Date(2024, 11, 9, 12, 0, 0, 0, time.UTC),
+					time.Date(2024, 11, 9, 12, 30, 0, 0, time.UTC),
+					2,
+					1,
+					12,
+					false,
+				)
+
 				message := createTestMessage(chatID, 6, "/record")
 				message.Chat = createChat(chatID)
 				message.Entities = []tgbotapi.MessageEntity{
@@ -686,15 +696,21 @@ func TestRegisterHandle(t *testing.T) {
 			},
 			expected: func() []tgbotapi.Chattable {
 				text := `Список ваших записей в стоматологическую клинику "Олимп" в Софрино
+🔴 - Предстоящие записи
 
-Запись №1
+🔴 Запись №1
 📅 Дата и время: <b><i>2024-11-09 18:00</i></b>
 👨‍⚕️ Врач: <b><i>Подаева С.Е. - Терапевты</i></b>
 🦷 На прием: <b><i>Тестовая запись. (0 мин)</i></b>
 
-Запись №2
+🔴 Запись №2
 📅 Дата и время: <b><i>2024-12-11 12:40</i></b>
 👨‍⚕️ Врач: <b><i>Новикова Н.В. - Гигиенисты</i></b>
+🦷 На прием: <b><i>Тестовая запись. (0 мин)</i></b>
+
+Запись №3
+📅 Дата и время: <b><i>2024-11-09 12:00</i></b>
+👨‍⚕️ Врач: <b><i>Подаева С.Е. - Терапевты</i></b>
 🦷 На прием: <b><i>Тестовая запись. (0 мин)</i></b>`
 
 				msg := tgbotapi.NewMessage(chatID, text)
@@ -717,11 +733,11 @@ func TestRegisterHandle(t *testing.T) {
 				msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 					[]tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(
 						"Запись №1: 2024-11-09 18:00 Подаева С.Е.",
-						`{"command":"del_r","r":1}`),
+						`{"command":"del_r","r":2}`),
 					},
 					[]tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(
 						"Запись №2: 2024-12-11 12:40 Новикова Н.В.",
-						`{"command":"del_r","r":2}`),
+						`{"command":"del_r","r":3}`),
 					},
 				)
 				return []tgbotapi.Chattable{msg}
@@ -729,7 +745,7 @@ func TestRegisterHandle(t *testing.T) {
 		},
 		{ // 24
 			userMessage: func() tgbotapi.Update {
-				callbackQuery := createTestQuery(chatID, 15, `{"command":"del_r","r":1}`)
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"del_r","r":2}`)
 				return tgbotapi.Update{CallbackQuery: callbackQuery}
 			},
 			expected: func() []tgbotapi.Chattable {
@@ -761,7 +777,7 @@ func TestRegisterHandle(t *testing.T) {
 		},
 		{ // 26
 			userMessage: func() tgbotapi.Update {
-				callbackQuery := createTestQuery(chatID, 15, `{"command":"del_r","r":2}`)
+				callbackQuery := createTestQuery(chatID, 15, `{"command":"del_r","r":3}`)
 				return tgbotapi.Update{CallbackQuery: callbackQuery}
 			},
 			expected: func() []tgbotapi.Chattable {
@@ -800,6 +816,22 @@ func TestRegisterHandle(t *testing.T) {
 				text := `К сожалению, такой записи не найдено 😕`
 				msg := tgbotapi.NewMessage(chatID, text)
 				return []tgbotapi.Chattable{msg}
+			},
+		},
+
+		{ // 29 повторная проверка на существующую запись
+			userMessage: func() tgbotapi.Update {
+				callbackQuery := createTestQuery(chatID, 0, `{"command":"approve","d":"register"}`)
+				return tgbotapi.Update{CallbackQuery: callbackQuery}
+			},
+			expected: func() []tgbotapi.Chattable {
+				text := "К сожалению, вы не можете записаться к этому врачу, так как уже состоите в списке записавшихся 🩺❗ к нему"
+				keyboard := tgbotapi.InlineKeyboardMarkup{}
+				keyboard.InlineKeyboard = [][]tgbotapi.InlineKeyboardButton{
+					{tgbotapi.NewInlineKeyboardButtonData("Назад", `{"command":"back","b":"doctors"}`)},
+				}
+				exceptedMsg := tgbotapi.NewEditMessageTextAndMarkup(chatID, 0, text, keyboard)
+				return []tgbotapi.Chattable{exceptedMsg}
 			},
 		},
 	}

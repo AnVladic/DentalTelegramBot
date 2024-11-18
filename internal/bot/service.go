@@ -829,13 +829,14 @@ func (h *TelegramBotHandler) getCRMRecordsList(crmUserID int64,
 }
 
 func (h *TelegramBotHandler) findRecordByPatientAndDoctor(
-	doctorID, patientID int64, message *tgbotapi.Message, log *logrus.Entry) (*crm.ShortRecord, error) {
+	doctorID, patientID int64, fromTime time.Time, message *tgbotapi.Message, log *logrus.Entry) (*crm.ShortRecord, error) {
 	records, err := h.dentalProClient.PatientRecords(patientID)
 	if h.checkAndLogError(err, log, message, "PatientRecords %s", err) {
 		return nil, err
 	}
 	for _, record := range records {
-		if record.DoctorID == doctorID {
+		t := time.Unix(record.DateStartTimestamp, 0)
+		if record.DoctorID == doctorID && fromTime.Before(t) {
 			return &record, nil
 		}
 	}
@@ -910,4 +911,22 @@ func (h *TelegramBotHandler) getDentalProIDByUser(
 		}
 	}
 	return *user.DentalProID, nil
+}
+
+func (h *TelegramBotHandler) checkAndSendExistRecord(
+	dentalProUserId int64, doctorID int64, message *tgbotapi.Message, log *logrus.Entry,
+) error {
+	record, err := h.findRecordByPatientAndDoctor(doctorID, dentalProUserId, h.nowTime.Now(), message, log)
+	if h.checkAndLogError(err, log, message, "PatientRecords %s", err) {
+		return err
+	}
+	if record != nil {
+		keyboard := tgbotapi.NewInlineKeyboardMarkup()
+		edit := tgbotapi.NewEditMessageTextAndMarkup(
+			message.Chat.ID, message.MessageID, h.userTexts.HasSameRecord,
+			h.AddBackButton(keyboard, "doctors"))
+		_, _ = h.Edit(edit, true)
+		return fmt.Errorf("find exists record by doctor=%d, patient=%d ", doctorID, dentalProUserId)
+	}
+	return nil
 }

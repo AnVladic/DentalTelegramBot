@@ -260,9 +260,20 @@ func (h *TelegramBotHandler) ShowRecordsListHandler(
 		return
 	}
 
+	if len(records) > 20 {
+		records = records[:20]
+	}
+
+	h.sortRecords(records)
+
 	rectorsTexts := make([]string, len(records))
 	for i, record := range records {
-		rectorsTexts[i] = fmt.Sprintf(h.userTexts.RecordItem,
+		format := h.userTexts.RecordItem
+		t := time.Unix(record.DateStartTimestamp, 0)
+		if h.nowTime.Now().Before(t) {
+			format = h.userTexts.RecordWillItem
+		}
+		rectorsTexts[i] = fmt.Sprintf(format,
 			i+1,
 			time.Time(record.DateStart).Format("2006-01-02 15:04"),
 			record.DoctorName,
@@ -299,15 +310,25 @@ func (h *TelegramBotHandler) DeleteRecordHandler(message *tgbotapi.Message, chat
 		return
 	}
 
-	if len(records) == 0 {
+	filteredRecord := make([]crm.ShortRecord, 0)
+	for _, record := range records {
+		t := time.Unix(record.DateStartTimestamp, 0)
+		if h.nowTime.Now().Before(t) {
+			filteredRecord = append(filteredRecord, record)
+		}
+	}
+
+	if len(filteredRecord) == 0 {
 		msg := tgbotapi.NewMessage(message.Chat.ID, h.userTexts.HasNoRecords)
 		_, _ = h.Send(msg, true)
 		return
 	}
 
+	h.sortRecords(filteredRecord)
+
 	keyboard := tgbotapi.NewInlineKeyboardMarkup()
-	keyboard.InlineKeyboard = make([][]tgbotapi.InlineKeyboardButton, len(records))
-	for i, record := range records {
+	keyboard.InlineKeyboard = make([][]tgbotapi.InlineKeyboardButton, len(filteredRecord))
+	for i, record := range filteredRecord {
 		datetime := time.Time(record.DateStart)
 		keyboard.InlineKeyboard[i] = []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(
 			fmt.Sprintf(
