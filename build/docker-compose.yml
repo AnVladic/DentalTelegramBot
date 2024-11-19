@@ -1,0 +1,60 @@
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: build/Dockerfile
+    container_name: telegram_bot
+    volumes:
+      - ../configs:/configs
+      - ../internal/crm/test_data:/internal/crm/test_data
+      - ../app.log:/app.log
+    expose:
+      - "8080"
+    networks:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ../configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    expose:
+      - "9090"
+    networks:
+      - monitoring
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    expose:
+      - "3000"
+    env_file:
+      - ../configs/monitoring/grafana.env
+    volumes:
+      - "grafana-data:/var/lib/grafana"
+      - "../configs/monitoring/data_sources.yml:/etc/grafana/provisioning/datasources/datasources.yml"
+    privileged: true
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  nginx:
+    image: nginx:latest
+    build: ../configs/nginx
+    volumes:
+      - ../configs/nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "3000:3000"
+    depends_on:
+      - bot
+      - grafana
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  grafana-data:
+  app.log:

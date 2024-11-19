@@ -4,19 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
 
 type Router struct {
-	bot          TelegramBotAPIWrapper
-	tgBotHandler *TelegramBotHandler
-	TgChatStates *map[int64]*TelegramChatState
-	ChatStatesMu *sync.Mutex
-	TestWG       *sync.WaitGroup
-	updateWG     *sync.WaitGroup
-	stopChan     chan struct{}
+	bot               TelegramBotAPIWrapper
+	tgBotHandler      *TelegramBotHandler
+	TgChatStates      *map[int64]*TelegramChatState
+	ChatStatesMu      *sync.Mutex
+	TestWG            *sync.WaitGroup
+	updateWG          *sync.WaitGroup
+	stopChan          chan struct{}
+	commandsProcessed *prometheus.CounterVec
 }
 
 type CallbackData struct {
@@ -35,6 +37,14 @@ func NewRouter(bot TelegramBotAPIWrapper, tgBotHandler *TelegramBotHandler, test
 	if test {
 		router.TestWG = new(sync.WaitGroup)
 	}
+	router.commandsProcessed = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "telegram_commands_processed_total",
+			Help: "Total number of commands processed by the bot",
+		},
+		[]string{"type", "command"},
+	)
+	prometheus.MustRegister(router.commandsProcessed)
 	return router
 }
 
@@ -104,6 +114,7 @@ func (r *Router) callbackMessage(callbackQuery *tgbotapi.CallbackQuery) {
 	if err != nil {
 		logrus.Error(err)
 	}
+
 	switch data.Command {
 	case "switch_timesheet_month":
 		r.tgBotHandler.SwitchTimesheetMonthCallback(callbackQuery)
@@ -126,13 +137,18 @@ func (r *Router) callbackMessage(callbackQuery *tgbotapi.CallbackQuery) {
 	default:
 		logrus.Errorf("unknown command \"%s\"", data.Command)
 	}
+
+	if data.Command != "" {
+		r.commandsProcessed.WithLabelValues("query_command", data.Command).Inc()
+	}
 }
 
 func (r *Router) handleMessage(msg *tgbotapi.Message) {
 	chatState := r.GetOrCreateChatState(msg.Chat.ID)
 	currentNextFunc := chatState.NextFunc
+	command := msg.Command()
 
-	switch msg.Command() {
+	switch command {
 	case "start":
 		r.tgBotHandler.StartCommandHandler(msg, chatState)
 	case "record":
@@ -148,10 +164,16 @@ func (r *Router) handleMessage(msg *tgbotapi.Message) {
 	default:
 		if chatState.NextFunc != nil {
 			(*chatState.NextFunc)(msg, chatState)
+			r.commandsProcessed.WithLabelValues("next_func", "call_next_func").Inc()
 		} else {
 			r.tgBotHandler.UnknownCommandHandler(msg, chatState)
 		}
 	}
+
+	if command != "" {
+		r.commandsProcessed.WithLabelValues("command", command).Inc()
+	}
+
 	if currentNextFunc == chatState.NextFunc {
 		chatState.UpdateChatState(nil)
 	}

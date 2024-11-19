@@ -72,7 +72,7 @@ func (t *TimeHMS) MarshalJSON() ([]byte, error) {
 func parseJSONFile(target interface{}, filePath string) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		panic("Error opening file")
+		panic(fmt.Errorf("error opening file: %s", filePath))
 	}
 	defer func(file *os.File) {
 		_ = file.Close()

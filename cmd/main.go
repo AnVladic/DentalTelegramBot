@@ -7,6 +7,8 @@ import (
 	"github.com/AnVladic/DentalTelegramBot/internal/bot"
 	"github.com/AnVladic/DentalTelegramBot/internal/crm"
 	"github.com/AnVladic/DentalTelegramBot/pkg"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -112,6 +114,12 @@ func main() {
 	if botToken == "" {
 		logrus.Panic("TELEGRAM_BOT_TOKEN environment variable not set")
 	}
+
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		logrus.Println("Starting metrics server on :8080")
+		logrus.Fatal(http.ListenAndServe(":8080", nil))
+	}()
 
 	dentalProClient := crm.NewDentalProClient(
 		os.Getenv("DENTAL_PRO_TOKEN"), os.Getenv("DENTAL_PRO_SECRET"), TEST, "internal/crm")
